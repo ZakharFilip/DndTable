@@ -1,28 +1,60 @@
+// socket-client.js — ИСПРАВЛЕННАЯ ВЕРСИЯ
 const socket = io();
 
-let myId = 'player_' + Math.random().toString(36).slice(2, 9);
+// Ждём, пока Konva полностью загрузится
+function waitForKonva() {
+  return new Promise(resolve => {
+    if (window.stage && window.layer) {
+      resolve();
+    } else {
+      const check = setInterval(() => {
+        if (window.stage && window.layer) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 10);
+    }
+  });
+}
 
-socket.on('init', state => {
+// Делаем stage и layer глобальными
+window.stage = stage;
+window.layer = layer;
+
+socket.on('init', async state => {
+  await waitForKonva(); // ← ВОЛШЕБНАЯ СТРОЧКА
   stage.scale({ x: state.zoom, y: state.zoom });
   stage.position(state.offset);
   Object.values(state.objects).forEach(obj => addObject(obj));
+  layer.batchDraw();
 });
 
-socket.on('add', obj => addObject(obj));
+socket.on('add', async obj => {
+  await waitForKonva();
+  addObject(obj);
+});
+
 socket.on('move', data => {
   const node = stage.findOne('#' + data.id);
-  if (node) node.position({ x: data.x, y: data.y });
+  if (node) {
+    node.position({ x: data.x, y: data.y });
+    layer.batchDraw();
+  }
 });
+
 socket.on('delete', id => {
   const node = stage.findOne('#' + id);
   if (node) node.destroy();
+  layer.batchDraw();
 });
 
+// Остальное без изменений
 function addObject(obj) {
   if (stage.findOne('#' + obj.id)) return;
 
   let node;
   if (obj.type === 'token') {
+    // Фишки — всегда работают
     node = new Konva.Circle({
       x: obj.x, y: obj.y,
       radius: 30,
@@ -32,22 +64,60 @@ function addObject(obj) {
       draggable: true,
       id: obj.id
     });
-  } else if (obj.type === 'card') {
-    const img = new Image();
-    img.src = obj.src;
-    node = new Konva.Image({
-      x: obj.x, y: obj.y,
-      image: img,
-      width: 200, height: 300,
-      draggable: true,
-      id: obj.id
-    });
+    layer.add(node);
+    layer.batchDraw();
+    return;
   }
-  layer.add(node);
-  layer.batchDraw();
+
+  if (obj.type === 'card') {
+    const img = new Image();
+    img.onload = () => {
+      node = new Konva.Image({
+        x: obj.x, y: obj.y,
+        image: img,
+        width: 200, height: 300,
+        draggable: true,
+        id: obj.id
+      });
+      layer.add(node);
+      layer.batchDraw();
+    };
+    img.onerror = () => {
+      console.warn('Картинка не найдена:', obj.src);
+      // Рисуем заглушку вместо сломанной карты
+      node = new Konva.Rect({
+        x: obj.x, y: obj.y,
+        width: 200, height: 300,
+        fill: '#555',
+        stroke: 'red',
+        strokeWidth: 4,
+        cornerRadius: 10,
+        draggable: true,
+        id: obj.id
+      });
+      const text = new Konva.Text({
+        text: '404\nКарта не найдена',
+        fontSize: 20,
+        fill: 'white',
+        align: 'center',
+        verticalAlign: 'middle',
+        width: 200,
+        height: 300
+      });
+      const group = new Konva.Group({ id: obj.id });
+      group.add(node, text);
+      layer.add(group);
+      group.moveToTop();
+      layer.batchDraw();
+    };
+    img.crossOrigin = 'Anonymous';
+    img.src = obj.src + '?t=' + Date.now(); // кэш-бустер
+  }
 }
 
+// Кнопки
 async function addToken() {
+  await waitForKonva();
   const colors = ['red','blue','green','yellow','purple'];
   const id = 'token_' + Date.now();
   const obj = {
@@ -61,6 +131,7 @@ async function addToken() {
 }
 
 async function addCard() {
+  await waitForKonva();
   const cards = ['/assets/card1.jpg','/assets/card2.jpg','/assets/dragon.png'];
   const id = 'card_' + Date.now();
   const obj = {
@@ -71,11 +142,4 @@ async function addCard() {
   };
   socket.emit('add', obj);
   addObject(obj);
-}
-
-function clearAll() {
-  if (confirm('Очистить весь стол?')) {
-    layer.destroyChildren();
-    socket.emit('delete', 'all');
-  }
 }
