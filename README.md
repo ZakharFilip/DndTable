@@ -1,3 +1,4 @@
+# DnDTable (MVP)\n\nMonorepo: backend (Node+TS+Express+Socket.IO+MongoDB), frontend (React+TS+Vite+Tailwind+PixiJS), shared packages.\n\n## Getting Started\n\n1. Install Node 18+.\n2. Install deps:\n   - Backend deps will be installed after scaffold.\n   - Frontend will be scaffolded via Vite.\n\n### Backend\n- Env file: `backend/.env` (copy from `.env.example`)\n- Dev: `npm run dev:backend`\n- Build: `npm -w backend run build`\n- Start: `npm start`\n\n### Frontend\n- Dev: `npm run dev:frontend`\n\n## Workspaces\n- `backend/` – API, realtime, models, ACL, ECS core\n- `frontend/` – React app\n- `packages/shared/` – shared types & schemas\n- `packages/scripts-sdk/` – future script SDK (stub)\n\n## License\nMIT\n*** End Patch```  }``` ***!
 . Как запустить проект локально
 
 Скачайте или распакуйте архив с проектом в удобную папку.

@@ -1,0 +1,22 @@
+{
+  "name": "dnd-table",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MVP for a 2D TTRPG virtual table (DnDTable) with backend, frontend, and shared packages.",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm --workspace backend run dev",
+    "dev:frontend": "npm --workspace frontend run dev",
+    "build": "npm -w backend run build && npm -w frontend run build",
+    "start": "npm -w backend run start"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+
+

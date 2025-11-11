@@ -1,25 +1,13 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>D&D Infinite Table</title>
-  <script src="https://unpkg.com/konva@9/konva.min.js"></script>
-  <style>
-    body { margin:0; overflow:hidden; background:#222; }
-    #ui { position:fixed; top:10px; left:10px; z-index:10; }
-    button { margin:5px; padding:10px; font-size:16px; }
-  </style>
-</head>
-<body>
-  <div id="ui">
-    <button onclick="addToken()">+ Фишка</button>
-    <button onclick="addCard()">+ Карта</button>
-    <button onclick="clearAll()">Очистить</button>
-  </div>
-  <div id="container"></div>
-
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="konva-setup.js"></script>
-  <script src="socket-client.js"></script>
-</body>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>frontend</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
