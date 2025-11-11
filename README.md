@@ -1,23 +1,151 @@
-# DnDTable (MVP)\n\nMonorepo: backend (Node+TS+Express+Socket.IO+MongoDB), frontend (React+TS+Vite+Tailwind+PixiJS), shared packages.\n\n## Getting Started\n\n1. Install Node 18+.\n2. Install deps:\n   - Backend deps will be installed after scaffold.\n   - Frontend will be scaffolded via Vite.\n\n### Backend\n- Env file: `backend/.env` (copy from `.env.example`)\n- Dev: `npm run dev:backend`\n- Build: `npm -w backend run build`\n- Start: `npm start`\n\n### Frontend\n- Dev: `npm run dev:frontend`\n\n## Workspaces\n- `backend/` – API, realtime, models, ACL, ECS core\n- `frontend/` – React app\n- `packages/shared/` – shared types & schemas\n- `packages/scripts-sdk/` – future script SDK (stub)\n\n## License\nMIT\n*** End Patch```  }``` ***!
-. Как запустить проект локально
+# DnDTable (MVP)
 
-Скачайте или распакуйте архив с проектом в удобную папку.
+Виртуальный стол для настольных ролевых игр (2D). Монорепозиторий:
+- Backend: Node.js + TypeScript, Express, Socket.IO, MongoDB (Mongoose)
+- Frontend: React + TypeScript, Vite, TailwindCSS (PixiJS для канваса позже)
+- Shared: общие типы/схемы (Zod)
 
-Откройте эту папку в терминале.
+Этот файл — быстрый онбординг: что установить, как запустить, где что лежит.
 
-Установите зависимости (это одна команда, всё поставится автоматически):
+---
 
+## Требования
+- Node.js 18+ (рекомендовано LTS)
+- npm (идёт вместе с Node)
+- Git
+- Локальный MongoDB (по умолчанию `mongodb://localhost:27017`)
+  - MongoDB Community или Docker-контейнер
+- Редактор: VS Code (по желанию)
+  - Расширения: TypeScript, TailwindCSS IntelliSense (и ESLint позже)
+
+Опционально (позже):
+- MinIO/S3 для ассетов (на MVP используем локальную папку)
+
+---
+
+## Установка проекта
+
+1) Клонирование
+```
+git clone <repo_url>
+cd DnDTable
+```
+
+2) Переменные окружения
+- Backend:
+  - скопируйте `infra/backend.env.example` → `backend/.env`
+  - при необходимости отредактируйте `MONGODB_URI`, `SOCKET_CORS_ORIGIN`, `ASSETS_DIR`
+- Frontend:
+  - скопируйте `infra/frontend.env.example` → `frontend/.env`
+  - при необходимости отредактируйте `VITE_API_URL`, `VITE_SOCKET_URL`
+
+3) Установка зависимостей
+- Backend (из корня репо):
+```
+npm install --workspace backend
+```
+- Frontend:
+```
+cd frontend
 npm install
+```
 
-Запустите локальный сервер разработки:
+Примечание (Windows PowerShell): не используйте `&&` между командами — запускайте их по одной строке.
 
-npm run dev
+---
 
-    Терминал покажет адрес вида http://localhost:5173. Откройте его в браузере — увидите рабочую версию сайта.
+## Запуск в разработке
 
-Полезные команды
+В одном терминале (из корня):
+```
+npm run dev:backend
+```
+Бэкенд поднимется на `http://localhost:4000` (MongoDB должен быть запущен).
 
-    npm run dev — запустить сайт в режиме разработки (перезапускается сам при каждом изменении файлов).
-    npm run build — собрать оптимизированную версию для публикации. Результат появится в папке dist.
-    npm run preview — посмотреть собранную версию перед публикацией.
-    npm run lint — проверить код на ошибки оформления (может быть полезно, если изменения делает разработчик).
+В другом терминале (из корня или `frontend/`):
+```
+npm run dev:frontend
+```
+Фронтенд запустится на `http://localhost:5173`.
+
+Проверка бэкенда:
+```
+GET http://localhost:4000/health
+```
+Должен вернуть `{ ok: true, ... }`.
+
+---
+
+## Скрипты
+- Запуск бэкенда (dev): `npm run dev:backend`
+- Запуск фронтенда (dev): `npm run dev:frontend`
+- Сборка:
+  - Backend: `npm -w backend run build`
+  - Frontend: `npm -w frontend run build`
+- Прод-старт бэкенда: `npm start` (использует собранный `backend/dist`)
+
+---
+
+## Технологии
+- Backend: Express (REST), Socket.IO (realtime), Mongoose (MongoDB), Zod (валидация), JWT (auth), CORS, dotenv
+- Frontend: React + TS, Vite, TailwindCSS, React Router, (PixiJS для Canvas)
+- Shared: `@dnd-table/shared` (типы/схемы), `@dnd-table/scripts-sdk` (заглушка под скрипты)
+
+---
+
+## Структура репозитория (кратко)
+- `backend/` — сервер
+  - `src/modules/auth/` — авторизация (register/login/refresh/logout)
+  - `src/modules/users/` — профиль, друзья
+  - `src/modules/parties/` — партии, участники, команды, инвайты
+  - `src/modules/parties/acl/` — права (ACL)
+  - `src/modules/scenes/` — сцены, объекты и компоненты (данные)
+  - `src/modules/ecs/` — реестр компонент и операции
+  - `src/modules/realtime/` — Socket.IO шлюз (join/applyOperation)
+  - `src/assets/` — загрузка/выдача ассетов (локальная папка)
+  - `src/storage/` — подключение Mongo и репозитории
+  - `src/shared/` — общее (health, ошибки, middleware)
+  - В каждом модуле лежит `README.md` с задачами и “готово, когда”
+- `frontend/` — клиент
+  - `src/app/` — shell и роутинг
+  - `src/pages/` — страницы (`Login`, `Dashboard`, `Party`)
+  - `src/api/` — REST клиент
+  - `src/state/` — состояние (сессия, сцена)
+  - `src/realtime/` — клиент Socket.IO
+  - `src/party/` — панели редактора (Hierarchy, Inspector, Assets)
+  - `src/canvas/` — PixiJS сцена и инструменты
+  - В подпапках есть `README.md` с задачами
+- `packages/`
+  - `shared/` — общие типы/схемы (Zod)
+  - `scripts-sdk/` — задел под скрипты (пока заглушка)
+- `infra/`
+  - пример `.env` для backend/frontend и `README.md`
+- Корень:
+  - `TASKS.md` — план по вертикалям (MVP, приоритеты и критерии готовности)
+
+---
+
+## Вертикали (MVP, порядок)
+1) Auth (BE+FE)
+2) Parties (+Friends) (BE+FE)
+3) Scene/Objects (BE+FE)
+4) Realtime (BE+FE)
+5) ACL (BE+FE)
+6) Assets (BE+FE)
+
+Детали — в `TASKS.md` и отдельных README модулей.
+
+---
+
+## Частые проблемы
+- MongoDB не запущен — бэкенд не стартует. Проверьте `MONGODB_URI`, запустите Mongo.
+- CORS/Origins — проверьте `SOCKET_CORS_ORIGIN` и `VITE_*` в `.env`.
+- Windows PowerShell — выполняйте команды построчно, без `&&`.
+- Порты заняты — измените `PORT` (бэкенд) или порт Vite (фронтенд).
+
+---
+
+## Лицензия
+MIT
+
+

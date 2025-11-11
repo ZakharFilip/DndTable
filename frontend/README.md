@@ -1,3 +1,14 @@
+# Frontend модули (обзор)
+
+- `src/app/` — shell и роутинг
+- `src/pages/` — страницы (Login, Dashboard, Party)
+- `src/api/` — REST клиент
+- `src/state/` — хранилище (сессия, сцена)
+- `src/realtime/` — Socket клиент
+- `src/party/` — панели редактора (Hierarchy, Inspector, Assets)
+- `src/canvas/` — PixiJS сцена и инструменты
+
+Смотри README в подпапках для задач.
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
