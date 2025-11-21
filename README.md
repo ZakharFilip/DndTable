@@ -52,8 +52,45 @@ npm install
 
 Примечание (Windows PowerShell): не используйте `&&` между командами — запускайте их по одной строке.
 
----
+Это я пишу, там насёр ещё ебучий, который я видимо не весь помню, вот ещё команды 
+npm --workspace backend install express-validator
+ 
+npm --workspace backend install bcrypt
+Если команда выше обосрётся(такое может быть), то поменяем эту шелуху на bcryptjs и в коде придётся несколько строк поменять.(npm --workspace backend install bcryptjs
+)
 
+
+
+npm install async
+либо:
+npm install express-async-errors 
+
+
+---
+## MongoDB
+
+Теперь пишет не чатик, а я.
+Нужно ещё сделать MongoDB.
+Нужно скачать Docker https://www.docker.com/
+Делаешь там всё что надо, устанавливаешь.
+
+Команды для проверки:
+docker --version
+docker-compose --version
+
+Затем нужно создать БДшку, команда:
+
+docker run -d --name mongodb -p 27017:27017 -e MONGO_INITDB_ROOT_USERNAME=admin -e MONGO_INITDB_ROOT_PASSWORD=password mongo:7.0
+
+Тут имя бд, логин и пароль, мейби можно другие поставить, но вроде как в коде уже используется именно название mongodb
+
+При создании БД должнен подгрузится Mongose и MongoDB
+Затем делаем типа архетектуру БД
+Команда:
+docker exec -i mongodb mongosh -u admin -p password --authenticationDatabase admin <Путь_к_файлу\DndTable\MongoFUCK\create-indexes.js
+
+и там онео чё-то высрет и тип работает
+Mongo через Docker Desktop запускать надо
 ## Запуск в разработке
 
 В одном терминале (из корня):
