@@ -80,24 +80,20 @@ docker-compose --version
 
 Затем нужно создать БДшку, команда:
 
-docker run -d --name mongodb -p 27017:27017 -e MONGO_INITDB_ROOT_USERNAME=admin -e MONGO_INITDB_ROOT_PASSWORD=password mongo:7.0
-
 docker run -d ^
   --name mongodb ^
   -p 27017:27017 ^
   -e MONGO_INITDB_ROOT_USERNAME=admin ^
-  -e MONGO_INITDB_ROOT_PASSWORD=password ^
+  -e MONGO_INITDB_ROOT_PASSWORD=passwd ^
+  -e MONGO_INITDB_DATABASE=dndTableBD ^
+  -v dnd_data:/data/db ^
   mongo:6
 
-Тут имя бд, логин и пароль, мейби можно другие поставить, но вроде как в коде уже используется именно название mongodb
 
-При создании БД должнен подгрузится Mongose и MongoDB
-Затем делаем типа архетектуру БД
-Команда:
-docker exec -i mongodb mongosh -u admin -p password --authenticationDatabase admin <Путь_к_файлу\DndTable\MongoFUCK\create-indexes.js
+Потом соззать индексы, всё написанно в файле
+docker exec -i mongodb mongosh -u admin -p passwd --authenticationDatabase admin < Путь_к_файлу\DndTable\MongoFUCK\create-indexes.js
 
-и там онео чё-то высрет и тип работает
-Mongo через Docker Desktop запускать надо
+
 ## Запуск в разработке
 
 В одном терминале (из корня):
