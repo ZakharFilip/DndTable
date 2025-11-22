@@ -1,4 +1,8 @@
-use myapp;
-db.users.createIndex({ 'email': 1 }, { unique: true });
-db.users.createIndex({ 'nickname': 1 });
-print('Индексы созданы успешно!');
+// create-indexes.js
+
+db = db.getSiblingDB("dndTableBD");
+
+db.users.createIndex({ email: 1 }, { unique: true });
+db.users.createIndex({ username: 1 }, { unique: true });
+
+print("✔ Индексы успешно созданы");

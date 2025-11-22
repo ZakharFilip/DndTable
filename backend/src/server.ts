@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import 'dotenv/config';
 import 'express-async-errors'; // ✅ ДОБАВЛЕНО - должен быть первым!
 import express from 'express';

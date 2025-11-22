@@ -82,6 +82,13 @@ docker-compose --version
 
 docker run -d --name mongodb -p 27017:27017 -e MONGO_INITDB_ROOT_USERNAME=admin -e MONGO_INITDB_ROOT_PASSWORD=password mongo:7.0
 
+docker run -d ^
+  --name mongodb ^
+  -p 27017:27017 ^
+  -e MONGO_INITDB_ROOT_USERNAME=admin ^
+  -e MONGO_INITDB_ROOT_PASSWORD=password ^
+  mongo:6
+
 Тут имя бд, логин и пароль, мейби можно другие поставить, но вроде как в коде уже используется именно название mongodb
 
 При создании БД должнен подгрузится Mongose и MongoDB
