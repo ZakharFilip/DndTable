@@ -1,9 +1,9 @@
-// frontend/src/pages/Login.tsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login } from "../api/auth";
 import { useSession } from "../state/session";
 import "../styles/Login.css";
+
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -66,42 +66,59 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="auth-container">
-      <form onSubmit={handleSubmit} className="auth-form">
-        <h2>Вход в аккаунт</h2>
+    <div className="login-container">
+      {/* Звездное небо */}
+      <div className="login-stars"></div>
+      
+      {/* Туманности */}
+      <div className="login-nebula"></div>
+      
+      {/* Декоративные холмы */}
+      <div className="login-hills"></div>
 
-        <div className="field">
+      {/* Форма входа */}
+      <form onSubmit={handleSubmit} className="login-form">
+        <h1 className="login-title">
+          Вход в аккаунт
+        </h1>
+
+        <div className="login-field">
           <label>Электронная почта</label>
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             type="email"
+            placeholder="email@example.com"
             required
           />
-          {emailError && <div className="error">{emailError}</div>}
+          {emailError && <div className="login-error">{emailError}</div>}
         </div>
 
-        <div className="field">
+        <div className="login-field">
           <label>Пароль</label>
           <input
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             type="password"
+            placeholder="••••••••"
             required
           />
-          {passwordError && <div className="error">{passwordError}</div>}
+          {passwordError && <div className="login-error">{passwordError}</div>}
         </div>
 
-        <button type="submit" disabled={!canSubmit || loading} className="submit-btn">
+        <button 
+          type="submit" 
+          disabled={!canSubmit || loading} 
+          className="login-submit-btn"
+        >
           {loading ? "Входим..." : "Войти"}
         </button>
 
-        {submitError && <div className="error submit-error">{submitError}</div>}
+        {submitError && <div className="login-submit-error">{submitError}</div>}
 
-        {/* ←←←←←←←←←←←←← НОВАЯ КНОПКА / ССЫЛКА ←←←←←←←←←←←←← */}
-        <div className="auth-switch">
-          Нет аккаунта?{" "}
-          <Link to="/register" className="link">
+        <div className="login-switch">
+          Нет аккаунта?
+          <Link to="/register" className="login-link">
             Зарегистрироваться
           </Link>
         </div>

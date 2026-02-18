@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSession } from "../state/session";
 import { logout } from "../api/auth";
+import "../styles/Dashboard.css";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -29,78 +30,91 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 flex items-center justify-center">
-      <div className="w-full max-w-md border border-gray-800 rounded-xl bg-gray-900/80 p-6 shadow-lg">
-        <h1 className="text-2xl font-semibold mb-6 text-center">
-          Главное меню
-        </h1>
+    <div className="dashboard-container">
+      {/* Звездное небо */}
+      <div className="dashboard-stars"></div>
+      
+      {/* Туманности */}
+      <div className="dashboard-nebula"></div>
+      
+      {/* Декоративные холмы */}
+      <div className="dashboard-hills"></div>
 
-        <div className="space-y-3">
-          <button
-            type="button"
-            onClick={() => navigate("/sessions/join")}
-            className="w-full px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 text-sm font-medium transition-colors"
-          >
-            Присоединиться
-          </button>
+      {/* Основной контент */}
+      <div className="dashboard-content">
+        <div className="dashboard-menu">
+          <h1 className="dashboard-title">
+            Главное меню
+          </h1>
 
-          <button
-            type="button"
-            onClick={() => navigate("/sessions/create")}
-            className="w-full px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 text-sm font-medium transition-colors"
-          >
-            Создать сессию
-          </button>
+          <div className="dashboard-buttons">
+            <button
+              type="button"
+              onClick={() => navigate("/sessions/join")}
+              className="dashboard-btn"
+            >
+              Присоединиться
+            </button>
 
-          <button
-            type="button"
-            onClick={() => navigate("/records")}
-            className="w-full px-4 py-2 rounded-md bg-gray-800 hover:bg-gray-700 text-sm font-medium transition-colors"
-          >
-            Записи игр
-          </button>
+            <button
+              type="button"
+              onClick={() => navigate("/sessions/create")}
+              className="dashboard-btn"
+            >
+              Создать сессию
+            </button>
 
-          <button
-            type="button"
-            onClick={() => navigate("/profile")}
-            className="w-full px-4 py-2 rounded-md bg-gray-800 hover:bg-gray-700 text-sm font-medium transition-colors"
-          >
-            Профиль
-          </button>
+            <button
+              type="button"
+              onClick={() => navigate("/records")}
+              className="dashboard-btn"
+            >
+              Записи игр
+            </button>
 
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="w-full px-4 py-2 rounded-md bg-red-600 hover:bg-red-500 text-sm font-medium transition-colors mt-2"
-          >
-            Выйти
-          </button>
+            <button
+              type="button"
+              onClick={() => navigate("/profile")}
+              className="dashboard-btn"
+            >
+              Профиль
+            </button>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="dashboard-btn logout"
+            >
+              Выйти
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* Модальное окно подтверждения выхода */}
       {showLogoutConfirm && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-sm rounded-lg bg-gray-900 border border-gray-800 p-5">
-            <h2 className="text-lg font-semibold mb-3">
+        <div className="dashboard-modal">
+          <div className="modal-content">
+            <h2 className="modal-title">
               Выйти из аккаунта?
             </h2>
-            <p className="text-sm text-gray-400 mb-5">
+            <p className="modal-text">
               Вы уверены, что хотите выйти из аккаунта? Вас перенесёт на
               страницу авторизации.
             </p>
 
-            <div className="flex justify-end gap-3">
+            <div className="modal-buttons">
               <button
                 type="button"
                 onClick={cancelLogout}
-                className="px-4 py-2 rounded-md bg-gray-800 hover:bg-gray-700 text-sm"
+                className="modal-btn cancel"
               >
                 Отмена
               </button>
               <button
                 type="button"
                 onClick={confirmLogout}
-                className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-500 text-sm font-medium"
+                className="modal-btn confirm"
               >
                 Выйти
               </button>
@@ -111,4 +125,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
