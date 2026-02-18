@@ -13,7 +13,7 @@ export const RegisterPage: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { setSession } = useSession();
+  const { setUser } = useSession();
 
   const validateEmail = (value: string) => {
     if (!/^\S+@\S+\.\S+$/.test(value)) return "Неправильный формат почты";
@@ -65,11 +65,9 @@ export const RegisterPage: React.FC = () => {
     setLoading(true);
     try {
       const resp = await register({ email, password, username });
-      // expected success format includes token and user
       if (resp && resp.success) {
-        // Save session
-        const { token, user } = resp.data;
-        setSession(token, user);
+        const { user } = resp.data;
+        setUser(user);
         setSuccess("Регистрация прошла успешно! На вашу почту отправлено письмо с ссылкой для подтверждения.");
       } else {
         setServerError(resp?.message || "Ошибка регистрации");

@@ -1,6 +1,6 @@
 // frontend/src/pages/Login.tsx
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom"; // ← добавили
+import { Link, useNavigate } from "react-router-dom";
 import { login } from "../api/auth";
 import { useSession } from "../state/session";
 import "../styles/Login.css";
@@ -12,7 +12,8 @@ export const LoginPage: React.FC = () => {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { setSession } = useSession();
+  const navigate = useNavigate();
+  const { setUser } = useSession();
 
   useEffect(() => {
     if (!email) {
@@ -45,9 +46,9 @@ export const LoginPage: React.FC = () => {
       const resp = await login({ email, password });
 
       if (resp?.success) {
-        const { token, user } = resp.data;
-        setSession(token, user);
-        window.location.href = "/dashboard";
+        const { user } = resp.data;
+        setUser(user);
+        navigate("/dashboard", { replace: true });
       } else {
         setSubmitError("Неверный email или пароль");
       }

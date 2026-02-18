@@ -12,3 +12,13 @@ export async function register(payload: RegisterPayload) {
   const resp = await http.post("/auth/register", payload);
   return resp.data;
 }
+
+export async function me() {
+  const resp = await http.get("/auth/me");
+  return resp.data;
+}
+
+export async function logout() {
+  const resp = await http.post("/auth/logout");
+  return resp.data;
+}

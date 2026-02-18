@@ -1,10 +1,6 @@
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
 import { UserModel } from "../users/user.model";
 import { RegisterDto, LoginDto } from "./auth.dto";
-
-const JWT_SECRET = process.env.JWT_SECRET || "changeme";
-const JWT_EXPIRES = process.env.JWT_EXPIRES || "7d";
 
 export class AuthService {
   static async register(dto: RegisterDto) {
@@ -53,14 +49,11 @@ export class AuthService {
       avatar: "default-avatar.png"
     });
 
-    const token = AuthService._generateJwt(user);
-
     return {
       success: true,
       data: {
-        token,
         user: {
-          id: user._id,
+          id: String(user._id),
           email: user.email,
           username: user.username,
           avatar: user.avatar
@@ -89,24 +82,16 @@ export class AuthService {
       throw err;
     }
 
-    const token = AuthService._generateJwt(user);
-
     return {
       success: true,
       data: {
-        token,
         user: {
-          id: user._id,
+          id: String(user._id),
           email: user.email,
           username: user.username
         }
       }
     };
-  }
-
-  static _generateJwt(user: any) {
-    const payload = { id: user._id, email: user.email, username: user.username };
-    return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
   }
 
   static _isPasswordStrong(password: string) {
