@@ -5,31 +5,31 @@ export default function ProfilePage() {
   const { user } = useSession();
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
+    <div className="min-h-screen bg-gray-100 text-gray-900 p-6">
       <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Профиль</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">Профиль</h1>
         <Link
           to="/dashboard"
-          className="text-sm text-indigo-400 hover:text-indigo-300 underline-offset-2 hover:underline"
+          className="text-sm text-indigo-600 hover:text-indigo-700 underline-offset-2 hover:underline"
         >
           Назад в главное меню
         </Link>
       </header>
 
-      <div className="border border-gray-800 rounded-lg p-4 bg-gray-900/60 max-w-xl space-y-3">
+      <div className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm max-w-xl space-y-3">
         {user ? (
           <>
             <div>
-              <div className="text-sm text-gray-400">Никнейм</div>
-              <div className="text-lg font-medium">{user.username}</div>
+              <div className="text-sm text-gray-500">Никнейм</div>
+              <div className="text-lg font-medium text-gray-900">{user.username}</div>
             </div>
             <div>
-              <div className="text-sm text-gray-400">Почта</div>
-              <div>{user.email}</div>
+              <div className="text-sm text-gray-500">Почта</div>
+              <div className="text-gray-900">{user.email}</div>
             </div>
           </>
         ) : (
-          <p className="text-gray-400">
+          <p className="text-gray-600">
             Данные пользователя недоступны. Попробуйте войти в аккаунт ещё раз.
           </p>
         )}

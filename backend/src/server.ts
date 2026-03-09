@@ -15,6 +15,7 @@ import { registerRealtime } from './modules/realtime/gateway.js';
 import { healthRouter } from './shared/health.js';
 import { errorHandler } from './shared/errorHandler.js'; // ✅ ДОБАВЛЕНО
 import authRouter from './modules/auth/auth.router';// ✅ ДОБАВЛЕНО
+import gamesessionsRouter from './modules/gamesessions/gamesessions.router';
 
 const PORT = Number(process.env.PORT || 4000);
 const SOCKET_CORS_ORIGIN = process.env.SOCKET_CORS_ORIGIN || 'http://localhost:5173';
@@ -57,7 +58,8 @@ async function main() {
   // ✅ ДОБАВЛЕНО: Auth routes
   app.use('/auth', authRouter);
 
-  //app.use("/auth", authRouter);
+  app.use('/api/sessions', gamesessionsRouter);
+
   // Health check (оставлен ваш роутер)
   app.use('/health', healthRouter);
 

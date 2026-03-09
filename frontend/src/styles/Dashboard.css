@@ -1,18 +1,5 @@
 /* frontend/src/styles/Dashboard.css */
-html, body {
-  margin: 0 !important;
-  padding: 0 !important;
-  width: 100%;
-  height: 100%;
-  background: transparent;
-}
 
-body {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* Убедитесь что контейнер занимает всю ширину */
 .login-container,
 .dashboard-container {
   margin: 0;

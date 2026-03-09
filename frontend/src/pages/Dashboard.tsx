@@ -58,7 +58,7 @@ export default function Dashboard() {
 
             <button
               type="button"
-              onClick={() => navigate("/sessions/create")}
+              onClick={() => navigate("/sessions")}
               className="dashboard-btn"
             >
               Создать сессию
