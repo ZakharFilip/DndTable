@@ -5,7 +5,7 @@ export default function ProfilePage() {
   const { user } = useSession();
 
   return (
-    <div className="min-h-screen bg-gray-100 text-gray-900 p-6">
+    <div className="min-h-screen bg-white text-gray-900 p-6">
       <header className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Профиль</h1>
         <Link

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getPublicSessions } from "../api/sessions";
 
 interface PublicSession {
@@ -12,6 +12,7 @@ interface PublicSession {
 }
 
 export default function JoinSessionPage() {
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<PublicSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +33,7 @@ export default function JoinSessionPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-100 text-gray-900 p-6">
+    <div className="min-h-screen bg-white text-gray-900 p-6">
       <header className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Присоединиться к сессии</h1>
         <Link
@@ -52,14 +53,26 @@ export default function JoinSessionPage() {
         {!loading && !error && sessions.length > 0 && (
           <ul className="space-y-3">
             {sessions.map((s) => (
-              <li key={s.id} className="border-b border-gray-200 pb-3 last:border-0">
-                <div className="font-medium text-gray-900">{s.name}</div>
-                {s.description && (
-                  <div className="text-sm text-gray-600 mt-1">{s.description}</div>
-                )}
-                {s.createdBy && (
-                  <div className="text-xs text-gray-500 mt-1">Создатель: {s.createdBy}</div>
-                )}
+              <li
+                key={s.id}
+                className="border-b border-gray-200 pb-3 last:border-0 flex items-start justify-between gap-4"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-gray-900">{s.name}</div>
+                  {s.description && (
+                    <div className="text-sm text-gray-600 mt-1">{s.description}</div>
+                  )}
+                  {s.createdBy && (
+                    <div className="text-xs text-gray-500 mt-1">Создатель: {s.createdBy}</div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/sessions/${s.id}`)}
+                  className="shrink-0 px-3 py-1.5 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-500"
+                >
+                  Войти
+                </button>
               </li>
             ))}
           </ul>

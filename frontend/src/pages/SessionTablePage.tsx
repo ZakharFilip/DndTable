@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { getSessionFull, saveSessionState } from "../api/sessions";
 
 const CHIP_RADIUS = 16;
 const GRID_SIZE = 24;
@@ -92,6 +93,9 @@ export default function SessionTablePage() {
   const [scale, setScale] = useState(1);
   const [chips, setChips] = useState<Chip[]>([]);
 
+  const [loadStatus, setLoadStatus] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
   const [isGrabbing, setIsGrabbing] = useState(false);
   const panStart = useRef<{ x: number; y: number } | null>(null);
   const posStart = useRef<{ x: number; y: number } | null>(null);
@@ -111,6 +115,37 @@ export default function SessionTablePage() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    setLoadStatus("loading");
+    getSessionFull(id)
+      .then((res) => {
+        if (cancelled) return;
+        const { state, objects } = res.data;
+        if (state?.viewport) {
+          setStagePos({ x: state.viewport.panX, y: state.viewport.panY });
+          setScale(state.viewport.scale);
+        }
+        const chipObjects = objects.filter((o) => o.type === "chip");
+        setChips(
+          chipObjects.map((o) => ({
+            id: o.id,
+            x: o.x,
+            y: o.y,
+            color: typeof o.props?.color === "string" ? o.props.color : "#3b82f6",
+          }))
+        );
+        setLoadStatus("loaded");
+      })
+      .catch(() => {
+        if (!cancelled) setLoadStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   const redraw = useCallback(
     (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -182,6 +217,28 @@ export default function SessionTablePage() {
       { id: nextChipId(), x: centerX, y: centerY, color: randomColor() },
     ]);
   }, [stagePos, scale, stageSize.width, stageSize.height]);
+
+  const handleSave = useCallback(async () => {
+    if (!id) return;
+    setSaveStatus("saving");
+    try {
+      await saveSessionState(id, {
+        viewport: { panX: stagePos.x, panY: stagePos.y, scale },
+        objects: chips.map((c, i) => ({
+          type: "chip",
+          x: c.x,
+          y: c.y,
+          sortOrder: i,
+          props: { color: c.color, radius: CHIP_RADIUS },
+        })),
+      });
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    } catch {
+      setSaveStatus("error");
+      setTimeout(() => setSaveStatus("idle"), 3000);
+    }
+  }, [id, stagePos, scale, chips]);
 
   const getCanvasPoint = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -310,14 +367,30 @@ export default function SessionTablePage() {
             ← К списку сессий
           </Link>
           <span className="text-gray-600 text-sm">Сессия {id || ""}</span>
+          {loadStatus === "loading" && (
+            <span className="text-gray-500 text-sm">Загрузка…</span>
+          )}
+          {loadStatus === "error" && (
+            <span className="text-red-600 text-sm">Ошибка загрузки</span>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={addChip}
-          className="px-3 py-1.5 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-500"
-        >
-          + Фишка
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saveStatus === "saving" || loadStatus !== "loaded"}
+            className="px-3 py-1.5 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-500 disabled:opacity-50"
+          >
+            {saveStatus === "saving" ? "Сохранение…" : saveStatus === "saved" ? "Сохранено" : "Сохранить"}
+          </button>
+          <button
+            type="button"
+            onClick={addChip}
+            className="px-3 py-1.5 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-500"
+          >
+            + Фишка
+          </button>
+        </div>
       </header>
 
       <div

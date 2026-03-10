@@ -5,7 +5,11 @@ body {
   min-height: 100vh;
   min-width: 100%;
   box-sizing: border-box;
-  background-color: #030712; /* совпадает с bg-gray-950 страниц */
+  /* Базовый фон и цвет текста по умолчанию — светлые,
+     чтобы текст на страницах всегда оставался читаемым.
+     Темные страницы (login/dashboard/party) задают свой фон локально. */
+  background-color: #ffffff;
+  color: #0f172a;
 }
 
 #root {
