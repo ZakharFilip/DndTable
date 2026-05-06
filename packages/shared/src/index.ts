@@ -58,4 +58,60 @@ export const RealtimeJoinScene = z.object({ partyId: z.string(), sceneId: z.stri
 export type JoinPartyPayload = z.infer<typeof RealtimeJoinParty>;
 export type JoinScenePayload = z.infer<typeof RealtimeJoinScene>;
 
+/**
+ * Tabletop (interactive table) object model.
+ *
+ * Note: this is intentionally independent from the ECS/SceneObject model above.
+ * It is used by the MVP "interactive table" pages and can later be bridged into ECS.
+ */
+export const TabletopObjectTypeSchema = z.enum(["shape", "text", "image", "token"]);
+export type TabletopObjectType = z.infer<typeof TabletopObjectTypeSchema>;
+
+export const TabletopTransformSchema = z.object({
+  position: z.object({
+    x: z.number(),
+    y: z.number(),
+    z: z.number().optional().default(0),
+  }),
+  scale: z.object({
+    x: z.number().optional().default(1),
+    y: z.number().optional().default(1),
+  }),
+  rotation: z.number().optional().default(0), // degrees
+  lockScale: z.boolean().optional().default(false),
+  lockRotation: z.boolean().optional().default(false),
+});
+export type TabletopTransform = z.infer<typeof TabletopTransformSchema>;
+
+export const TabletopAppearanceSchema = z.object({
+  shape: z.enum(["rectangle", "ellipse"]).optional(),
+  sprite: z.string().optional(), // URL / resource id / dataURL (MVP)
+  fillColor: z.string().optional(),
+  strokeColor: z.string().optional(),
+  tintColor: z.string().optional(),
+  opacity: z.number().min(0).max(1).optional(),
+});
+export type TabletopAppearance = z.infer<typeof TabletopAppearanceSchema>;
+
+export const TabletopTextSchema = z.object({
+  text: z.string().default(""),
+  font: z.string().optional().default("Inter"),
+  fontSize: z.number().optional().default(16),
+  textColor: z.string().optional().default("#111827"),
+  alignment: z.enum(["left", "center", "right"]).optional().default("left"),
+});
+export type TabletopText = z.infer<typeof TabletopTextSchema>;
+
+export const TabletopBaseObjectSchema = z.object({
+  id: z.string(),
+  type: TabletopObjectTypeSchema,
+  transform: TabletopTransformSchema,
+  appearance: TabletopAppearanceSchema.optional().default({}),
+  text: TabletopTextSchema.optional(),
+  metadata: z.record(z.string(), z.unknown()).optional().default({}),
+  groupId: z.string().optional().nullable(),
+  layerId: z.string().optional().nullable(),
+});
+export type TabletopBaseObject = z.infer<typeof TabletopBaseObjectSchema>;
+
 

@@ -5,6 +5,9 @@ import { GameSessionModel } from "./game-session.model";
 import { TableObjectModel } from "./table-object.model";
 import { SessionStateModel } from "./session-state.model";
 import { requireAuth } from "../../shared/requireAuth";
+import { applyTablePatches, type TablePatchOp } from "./table-patch";
+import { getIoInstance } from "../../shared/io";
+import type { TabletopBaseObject } from "@dnd-table/shared";
 
 const router = Router();
 
@@ -162,11 +165,13 @@ router.get("/:id/full", async (req: Request, res: Response, next: NextFunction) 
           : null,
         objects: objects.map((o) => ({
           id: String(o._id),
+          key: (o as any).key ?? String(o._id),
           type: o.type,
           x: o.x,
           y: o.y,
           sortOrder: o.sortOrder ?? 0,
           props: o.props ?? {},
+          version: (o as any).version ?? 1,
         })),
       },
     });
@@ -174,6 +179,72 @@ router.get("/:id/full", async (req: Request, res: Response, next: NextFunction) 
     next(err);
   }
 });
+
+// POST /api/sessions/:id/patch — применить патчи к объектам стола (версии, LWW)
+router.post(
+  "/:id/patch",
+  [body("clientId").isString().notEmpty(), body("ops").isArray()],
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        const details = errors.array().map((e) => ({
+          field: "path" in e ? e.path : "unknown",
+          message: e.msg,
+        }));
+        return res.status(400).json({
+          success: false,
+          error: "VALIDATION_ERROR",
+          message: "Ошибка валидации данных",
+          details,
+        });
+      }
+
+      const sessionId = req.params.id;
+      if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+        return res.status(400).json({
+          success: false,
+          error: "BAD_REQUEST",
+          message: "Некорректный id сессии",
+        });
+      }
+
+      const session = await GameSessionModel.findById(sessionId).lean();
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: "NOT_FOUND",
+          message: "Сессия не найдена",
+        });
+      }
+
+      const clientId = String(req.body.clientId);
+      const ops = req.body.ops as TablePatchOp[];
+
+      const result = await applyTablePatches({ gameSessionId: sessionId, ops });
+      if (result.conflicts.length > 0) {
+        return res.status(409).json({
+          success: false,
+          error: "VERSION_CONFLICT",
+          message: "Конфликт версий",
+          conflicts: result.conflicts,
+        });
+      }
+
+      // Broadcast to all connected clients in the table room
+      const io = getIoInstance();
+      io?.to(`table:${sessionId}`).emit("table:patchApplied", {
+        tableId: sessionId,
+        clientId,
+        applied: result.applied,
+      });
+
+      return res.json({ success: true, applied: result.applied });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 // PUT /api/sessions/:id/state — сохранение состояния сессии (viewport + объекты на столе)
 router.put(
@@ -220,7 +291,16 @@ router.put(
       }
 
       const viewport = req.body.viewport as { panX?: number; panY?: number; scale?: number } | undefined;
-      const objects = (req.body.objects as Array<{ type: string; x: number; y: number; sortOrder?: number; props?: Record<string, unknown> }>) ?? [];
+      const objects =
+        (req.body.objects as Array<{
+          key?: string;
+          version?: number;
+          type: string;
+          x?: number;
+          y?: number;
+          sortOrder?: number;
+          props?: Record<string, unknown>;
+        }>) ?? [];
 
       const sessionOid = new mongoose.Types.ObjectId(sessionId);
 
@@ -247,11 +327,37 @@ router.put(
         await TableObjectModel.insertMany(
           objects.map((o) => ({
             gameSessionId: sessionOid,
-            type: o.type,
-            x: o.x,
-            y: o.y,
+            key: o.key ?? new mongoose.Types.ObjectId().toString(),
+            version: o.version ?? 1,
+            // Compatibility:
+            // - legacy object: { type, x, y, props }
+            // - transitional: { type, props: { tabletop: TabletopBaseObject } }
+            // - tabletop: { type: "shape"|"text"|"image", props: TabletopBaseObject }
+            type:
+              o.props && typeof o.props === "object" && "transform" in o.props && "type" in o.props
+                ? String((o.props as unknown as TabletopBaseObject).type)
+                : o.props && typeof o.props === "object" && "tabletop" in o.props
+                  ? String((o.props as { tabletop?: TabletopBaseObject }).tabletop?.type ?? o.type)
+                  : String(o.type),
+            x:
+              o.props && typeof o.props === "object" && "transform" in o.props
+                ? Number((o.props as unknown as TabletopBaseObject).transform.position.x ?? 0)
+                : o.props && typeof o.props === "object" && "tabletop" in o.props
+                  ? Number((o.props as { tabletop?: TabletopBaseObject }).tabletop?.transform.position.x ?? 0)
+                  : Number(o.x ?? 0),
+            y:
+              o.props && typeof o.props === "object" && "transform" in o.props
+                ? Number((o.props as unknown as TabletopBaseObject).transform.position.y ?? 0)
+                : o.props && typeof o.props === "object" && "tabletop" in o.props
+                  ? Number((o.props as { tabletop?: TabletopBaseObject }).tabletop?.transform.position.y ?? 0)
+                  : Number(o.y ?? 0),
             sortOrder: o.sortOrder ?? 0,
-            props: o.props ?? {},
+            props:
+              o.props && typeof o.props === "object" && "transform" in o.props && "type" in o.props
+                ? (o.props as unknown as TabletopBaseObject)
+                : o.props && typeof o.props === "object" && "tabletop" in o.props
+                  ? (o.props as { tabletop?: TabletopBaseObject }).tabletop ?? {}
+                  : (o.props ?? {}),
           }))
         );
       }

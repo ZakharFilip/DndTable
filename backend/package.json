@@ -11,6 +11,7 @@
     "dev-alt": "ts-node-dev --respawn --transpile-only src/server.ts"
   },
   "dependencies": {
+    "@dnd-table/shared": "0.1.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "connect-mongo": "^6.0.0",

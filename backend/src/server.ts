@@ -16,6 +16,7 @@ import { healthRouter } from './shared/health.js';
 import { errorHandler } from './shared/errorHandler.js'; // ✅ ДОБАВЛЕНО
 import authRouter from './modules/auth/auth.router';// ✅ ДОБАВЛЕНО
 import gamesessionsRouter from './modules/gamesessions/gamesessions.router';
+import { setIoInstance } from "./shared/io.js";
 
 const PORT = Number(process.env.PORT || 4000);
 const SOCKET_CORS_ORIGIN = process.env.SOCKET_CORS_ORIGIN || 'http://localhost:5173';
@@ -71,6 +72,7 @@ async function main() {
     cors: { origin: SOCKET_CORS_ORIGIN, methods: ['GET', 'POST'] }
   });
 
+  setIoInstance(io);
   registerRealtime(io);
 
   httpServer.listen(PORT, () => {

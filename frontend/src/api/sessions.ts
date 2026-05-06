@@ -17,11 +17,13 @@ export interface SessionViewportDto {
 
 export interface TableObjectDto {
   id: string;
+  key?: string;
   type: string;
   x: number;
   y: number;
   sortOrder?: number;
   props: Record<string, unknown>;
+  version?: number;
 }
 
 export interface SessionFullDto {
@@ -60,7 +62,15 @@ export async function saveSessionState(
   id: string,
   payload: {
     viewport?: SessionViewportDto;
-    objects?: Array<{ type: string; x: number; y: number; sortOrder?: number; props?: Record<string, unknown> }>;
+    objects?: Array<{
+      key?: string;
+      version?: number;
+      type: string;
+      x?: number;
+      y?: number;
+      sortOrder?: number;
+      props?: Record<string, unknown>;
+    }>;
   }
 ) {
   const resp = await http.put(`/api/sessions/${id}/state`, payload);

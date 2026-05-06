@@ -2,6 +2,10 @@ import { Schema, model, Document, Types } from "mongoose";
 
 export interface ITableObject extends Document {
   gameSessionId: Types.ObjectId;
+  /** Stable client-visible id (uuid/string). Unique within a session. */
+  key: string;
+  /** Optimistic-concurrency version (per object). */
+  version: number;
   type: string;
   x: number;
   y: number;
@@ -14,6 +18,8 @@ export interface ITableObject extends Document {
 const TableObjectSchema = new Schema<ITableObject>(
   {
     gameSessionId: { type: Schema.Types.ObjectId, ref: "GameSession", required: true },
+    key: { type: String, required: true, trim: true },
+    version: { type: Number, required: true, default: 1 },
     type: { type: String, required: true, trim: true },
     x: { type: Number, required: true },
     y: { type: Number, required: true },
@@ -25,6 +31,7 @@ const TableObjectSchema = new Schema<ITableObject>(
 
 TableObjectSchema.index({ gameSessionId: 1 });
 TableObjectSchema.index({ gameSessionId: 1, type: 1 });
+TableObjectSchema.index({ gameSessionId: 1, key: 1 }, { unique: true });
 
 export const TableObjectModel = model<ITableObject>(
   "TableObject",

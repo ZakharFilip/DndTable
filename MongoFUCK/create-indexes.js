@@ -16,6 +16,7 @@ db.session_participants.createIndex({ userId: 1 });
 // Объекты на столе: выборка по сессии и по типу
 db.table_objects.createIndex({ gameSessionId: 1 });
 db.table_objects.createIndex({ gameSessionId: 1, type: 1 });
+db.table_objects.createIndex({ gameSessionId: 1, key: 1 }, { unique: true });
 
 // Состояние сессии (вид камеры, настройки): один документ на сессию
 db.session_state.createIndex({ gameSessionId: 1 }, { unique: true });
