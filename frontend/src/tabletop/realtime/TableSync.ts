@@ -1,44 +1,7 @@
 import type { Socket } from "socket.io-client";
+import type { AppliedOp, TablePatchOp } from "@dnd-table/shared";
 
-export type TablePatchOp =
-  | {
-      opId: string;
-      action: "create";
-      key: string;
-      object: {
-        type: string;
-        x: number;
-        y: number;
-        sortOrder?: number;
-        props?: Record<string, unknown>;
-      };
-    }
-  | {
-      opId: string;
-      action: "update";
-      key: string;
-      baseVersion: number;
-      patch: { x?: number; y?: number; sortOrder?: number; props?: Record<string, unknown> };
-    }
-  | { opId: string; action: "delete"; key: string; baseVersion: number };
-
-export type AppliedOp =
-  | {
-      opId: string;
-      action: "create";
-      key: string;
-      version: number;
-      object: { type: string; x: number; y: number; sortOrder: number; props: Record<string, unknown> };
-    }
-  | {
-      opId: string;
-      action: "update";
-      key: string;
-      baseVersion: number;
-      version: number;
-      patch: { x?: number; y?: number; sortOrder?: number; props?: Record<string, unknown> };
-    }
-  | { opId: string; action: "delete"; key: string; baseVersion: number; version: number };
+export type { AppliedOp, TablePatchOp } from "@dnd-table/shared";
 
 export type SyncStatus = "idle" | "syncing" | "ok" | "error" | "conflict";
 
@@ -124,7 +87,7 @@ export class TableSync {
     this.params.socket.emit(
       "table:patch",
       { tableId: this.params.tableId, clientId: this.params.clientId, ops: batch },
-      async (ack: any) => {
+      async (ack: { success?: boolean; status?: number; error?: string }) => {
         if (ack?.success) {
           this.params.setStatus("ok");
           window.setTimeout(() => this.params.setStatus("idle"), 800);
@@ -148,4 +111,3 @@ export class TableSync {
     );
   }
 }
-

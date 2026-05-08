@@ -114,4 +114,78 @@ export const TabletopBaseObjectSchema = z.object({
 });
 export type TabletopBaseObject = z.infer<typeof TabletopBaseObjectSchema>;
 
+/**
+ * Tabletop patch ops: shared between backend (apply with optimistic concurrency)
+ * and frontend (queue + send via socket).
+ *
+ * Kept here so a single change to the wire format updates both sides.
+ */
+export type TablePatchAction = "create" | "update" | "delete";
+
+export type TablePatchOp =
+  | {
+      opId: string;
+      action: "create";
+      key: string;
+      object: {
+        type: string;
+        x: number;
+        y: number;
+        sortOrder?: number;
+        props?: Record<string, unknown>;
+      };
+    }
+  | {
+      opId: string;
+      action: "update";
+      key: string;
+      baseVersion: number;
+      patch: {
+        x?: number;
+        y?: number;
+        sortOrder?: number;
+        props?: Record<string, unknown>;
+      };
+    }
+  | {
+      opId: string;
+      action: "delete";
+      key: string;
+      baseVersion: number;
+    };
+
+export type AppliedOp =
+  | {
+      opId: string;
+      action: "create";
+      key: string;
+      version: number;
+      object: {
+        type: string;
+        x: number;
+        y: number;
+        sortOrder: number;
+        props: Record<string, unknown>;
+      };
+    }
+  | {
+      opId: string;
+      action: "update";
+      key: string;
+      baseVersion: number;
+      version: number;
+      patch: {
+        x?: number;
+        y?: number;
+        sortOrder?: number;
+        props?: Record<string, unknown>;
+      };
+    }
+  | {
+      opId: string;
+      action: "delete";
+      key: string;
+      baseVersion: number;
+      version: number;
+    };
 

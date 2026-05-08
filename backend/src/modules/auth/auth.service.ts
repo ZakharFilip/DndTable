@@ -1,43 +1,44 @@
 import bcrypt from "bcrypt";
 import { UserModel } from "../users/user.model";
 import { RegisterDto, LoginDto } from "./auth.dto";
+import { HttpError } from "../../shared/HttpError";
 
 export class AuthService {
   static async register(dto: RegisterDto) {
     const email = dto.email.toLowerCase().trim();
     const username = dto.username.trim();
 
-    // Check existing email
     const foundByEmail = await UserModel.findOne({ email });
     if (foundByEmail) {
-      const err: any = new Error("EMAIL_ALREADY_EXISTS");
-      err.status = 409;
-      err.body = { success: false, error: "EMAIL_ALREADY_EXISTS", message: "Пользователь с такой почтой уже зарегистрирован", field: "email" };
-      throw err;
+      throw new HttpError(
+        409,
+        "EMAIL_ALREADY_EXISTS",
+        "Пользователь с такой почтой уже зарегистрирован",
+        { field: "email" }
+      );
     }
 
-    // Check existing username
     const foundByUsername = await UserModel.findOne({ username });
     if (foundByUsername) {
-      const err: any = new Error("USERNAME_ALREADY_EXISTS");
-      err.status = 409;
-      err.body = { success: false, error: "USERNAME_ALREADY_EXISTS", message: "Этот никнейм уже используется", field: "username" };
-      throw err;
+      throw new HttpError(
+        409,
+        "USERNAME_ALREADY_EXISTS",
+        "Этот никнейм уже используется",
+        { field: "username" }
+      );
     }
 
-    // Password policy check (server-side)
     if (!AuthService._isPasswordStrong(dto.password)) {
-      const err: any = new Error("VALIDATION_ERROR");
-      err.status = 400;
-      err.body = {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "Ошибка валидации данных",
-        details: [
-          { field: "password", message: "Пароль должен содержать заглавную букву, строчную и цифру" }
-        ]
-      };
-      throw err;
+      throw new HttpError(
+        400,
+        "VALIDATION_ERROR",
+        "Ошибка валидации данных",
+        {
+          details: [
+            { field: "password", message: "Пароль должен содержать заглавную букву, строчную и цифру" },
+          ],
+        }
+      );
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -46,7 +47,7 @@ export class AuthService {
       email,
       username,
       passwordHash,
-      avatar: "default-avatar.png"
+      avatar: "default-avatar.png",
     });
 
     return {
@@ -56,10 +57,10 @@ export class AuthService {
           id: String(user._id),
           email: user.email,
           username: user.username,
-          avatar: user.avatar
-        }
+          avatar: user.avatar,
+        },
       },
-      message: "Регистрация прошла успешно"
+      message: "Регистрация прошла успешно",
     };
   }
 
@@ -68,18 +69,12 @@ export class AuthService {
 
     const user = await UserModel.findOne({ email });
     if (!user) {
-      const err: any = new Error("INVALID_CREDENTIALS");
-      err.status = 401;
-      err.body = { success: false, error: "INVALID_CREDENTIALS", message: "Неверный логин или пароль" };
-      throw err;
+      throw new HttpError(401, "INVALID_CREDENTIALS", "Неверный логин или пароль");
     }
 
     const isValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isValid) {
-      const err: any = new Error("INVALID_CREDENTIALS");
-      err.status = 401;
-      err.body = { success: false, error: "INVALID_CREDENTIALS", message: "Неверный логин или пароль" };
-      throw err;
+      throw new HttpError(401, "INVALID_CREDENTIALS", "Неверный логин или пароль");
     }
 
     return {
@@ -88,14 +83,13 @@ export class AuthService {
         user: {
           id: String(user._id),
           email: user.email,
-          username: user.username
-        }
-      }
+          username: user.username,
+        },
+      },
     };
   }
 
   static _isPasswordStrong(password: string) {
-    // Basic policy: length>=8, contains digit, uppercase, lowercase
     if (typeof password !== "string" || password.length < 8) return false;
     const upper = /[A-ZА-ЯЁ]/;
     const lower = /[a-zа-яё]/;

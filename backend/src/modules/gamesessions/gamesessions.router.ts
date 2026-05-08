@@ -1,19 +1,17 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { body, validationResult } from "express-validator";
-import mongoose from "mongoose";
-import { GameSessionModel } from "./game-session.model";
-import { TableObjectModel } from "./table-object.model";
-import { SessionStateModel } from "./session-state.model";
+import { body } from "express-validator";
 import { requireAuth } from "../../shared/requireAuth";
-import { applyTablePatches, type TablePatchOp } from "./table-patch";
+import { validate } from "../../shared/validate";
+import { requireValidObjectId } from "../../shared/requireValidObjectId";
+import { GameSessionsService, type IncomingTableObject } from "./gamesessions.service";
+import type { TablePatchOp } from "./table-patch";
 import { getIoInstance } from "../../shared/io";
-import type { TabletopBaseObject } from "@dnd-table/shared";
 
 const router = Router();
 
 router.use(requireAuth);
 
-// POST /api/sessions — создать сессию (авторизованный пользователь)
+// POST /api/sessions — создать сессию
 router.post(
   "/",
   [
@@ -21,207 +19,70 @@ router.post(
     body("description").optional().trim(),
     body("isPrivate").optional().isBoolean().withMessage("isPrivate должно быть true/false"),
   ],
+  validate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        const details = errors.array().map((e) => ({
-          field: "path" in e ? e.path : "unknown",
-          message: e.msg,
-        }));
-        return res.status(400).json({
-          success: false,
-          error: "VALIDATION_ERROR",
-          message: "Ошибка валидации данных",
-          details,
-        });
-      }
-
       const userId = (req as Request & { userId: string }).userId;
-      const { name, description, isPrivate } = req.body;
-
-      const session = await GameSessionModel.create({
-        name: name || "",
-        description: description ?? "",
-        isPrivate: Boolean(isPrivate),
-        createdBy: userId,
+      const session = await GameSessionsService.createSession(userId, {
+        name: req.body.name,
+        description: req.body.description,
+        isPrivate: req.body.isPrivate,
       });
-
-      return res.status(201).json({
-        success: true,
-        data: {
-          session: {
-            id: String(session._id),
-            name: session.name,
-            description: session.description,
-            isPrivate: session.isPrivate,
-            createdBy: String(session.createdBy),
-            createdAt: session.createdAt,
-          },
-        },
-      });
+      return res.status(201).json({ success: true, data: { session } });
     } catch (err) {
       next(err);
     }
   }
 );
 
-// GET /api/sessions — мои сессии (созданные текущим пользователем)
+// GET /api/sessions — мои сессии
 router.get("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = (req as Request & { userId: string }).userId;
-
-    const list = await GameSessionModel.find({ createdBy: userId })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    return res.json({
-      success: true,
-      data: {
-        sessions: list.map((s) => ({
-          id: String(s._id),
-          name: s.name,
-          description: s.description,
-          isPrivate: s.isPrivate,
-          createdBy: String(s.createdBy),
-          createdAt: s.createdAt,
-        })),
-      },
-    });
+    const sessions = await GameSessionsService.listMy(userId);
+    return res.json({ success: true, data: { sessions } });
   } catch (err) {
     next(err);
   }
 });
 
-// GET /api/sessions/public — публичные сессии (для страницы «Присоединиться»)
-router.get("/public", async (req: Request, res: Response, next: NextFunction) => {
+// GET /api/sessions/public — публичные сессии
+router.get("/public", async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    const list = await GameSessionModel.find({ isPrivate: false })
-      .populate("createdBy", "username")
-      .sort({ createdAt: -1 })
-      .lean();
-
-    return res.json({
-      success: true,
-      data: {
-        sessions: list.map((s) => ({
-          id: String(s._id),
-          name: s.name,
-          description: s.description,
-          isPrivate: s.isPrivate,
-          createdBy: typeof s.createdBy === "object" && s.createdBy && "username" in s.createdBy
-            ? (s.createdBy as { username: string }).username
-            : String(s.createdBy),
-          createdAt: s.createdAt,
-        })),
-      },
-    });
+    const sessions = await GameSessionsService.listPublic();
+    return res.json({ success: true, data: { sessions } });
   } catch (err) {
     next(err);
   }
 });
 
-// GET /api/sessions/:id/full — загрузка сессии: метаданные, объекты на столе, состояние камеры
-router.get("/:id/full", async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const sessionId = req.params.id;
-    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
-      return res.status(400).json({
-        success: false,
-        error: "BAD_REQUEST",
-        message: "Некорректный id сессии",
-      });
-    }
-
-    const session = await GameSessionModel.findById(sessionId).lean();
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        error: "NOT_FOUND",
-        message: "Сессия не найдена",
-      });
-    }
-
-    const [objects, state] = await Promise.all([
-      TableObjectModel.find({ gameSessionId: sessionId })
-        .sort({ sortOrder: 1, _id: 1 })
-        .lean(),
-      SessionStateModel.findOne({ gameSessionId: sessionId }).lean(),
-    ]);
-
-    return res.json({
-      success: true,
-      data: {
-        session: {
-          id: String(session._id),
-          name: session.name,
-          description: session.description,
-          isPrivate: session.isPrivate,
-          createdBy: String(session.createdBy),
-          createdAt: session.createdAt,
-        },
-        state: state?.viewport
-          ? { viewport: state.viewport }
-          : null,
-        objects: objects.map((o) => ({
-          id: String(o._id),
-          key: (o as any).key ?? String(o._id),
-          type: o.type,
-          x: o.x,
-          y: o.y,
-          sortOrder: o.sortOrder ?? 0,
-          props: o.props ?? {},
-          version: (o as any).version ?? 1,
-        })),
-      },
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// POST /api/sessions/:id/patch — применить патчи к объектам стола (версии, LWW)
-router.post(
-  "/:id/patch",
-  [body("clientId").isString().notEmpty(), body("ops").isArray()],
+// GET /api/sessions/:id/full — полная загрузка сессии
+router.get(
+  "/:id/full",
+  requireValidObjectId("id"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        const details = errors.array().map((e) => ({
-          field: "path" in e ? e.path : "unknown",
-          message: e.msg,
-        }));
-        return res.status(400).json({
-          success: false,
-          error: "VALIDATION_ERROR",
-          message: "Ошибка валидации данных",
-          details,
-        });
-      }
+      const data = await GameSessionsService.getFull(req.params.id);
+      return res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
+// POST /api/sessions/:id/patch — применить патчи (LWW)
+router.post(
+  "/:id/patch",
+  requireValidObjectId("id"),
+  [body("clientId").isString().notEmpty(), body("ops").isArray()],
+  validate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
       const sessionId = req.params.id;
-      if (!mongoose.Types.ObjectId.isValid(sessionId)) {
-        return res.status(400).json({
-          success: false,
-          error: "BAD_REQUEST",
-          message: "Некорректный id сессии",
-        });
-      }
-
-      const session = await GameSessionModel.findById(sessionId).lean();
-      if (!session) {
-        return res.status(404).json({
-          success: false,
-          error: "NOT_FOUND",
-          message: "Сессия не найдена",
-        });
-      }
-
       const clientId = String(req.body.clientId);
       const ops = req.body.ops as TablePatchOp[];
 
-      const result = await applyTablePatches({ gameSessionId: sessionId, ops });
+      const result = await GameSessionsService.applyPatch(sessionId, ops);
       if (result.conflicts.length > 0) {
         return res.status(409).json({
           success: false,
@@ -231,7 +92,6 @@ router.post(
         });
       }
 
-      // Broadcast to all connected clients in the table room
       const io = getIoInstance();
       io?.to(`table:${sessionId}`).emit("table:patchApplied", {
         tableId: sessionId,
@@ -246,9 +106,10 @@ router.post(
   }
 );
 
-// PUT /api/sessions/:id/state — сохранение состояния сессии (viewport + объекты на столе)
+// PUT /api/sessions/:id/state — сохранение состояния
 router.put(
   "/:id/state",
+  requireValidObjectId("id"),
   [
     body("viewport").optional().isObject(),
     body("viewport.panX").optional().isNumeric(),
@@ -256,112 +117,13 @@ router.put(
     body("viewport.scale").optional().isNumeric(),
     body("objects").optional().isArray(),
   ],
+  validate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        const details = errors.array().map((e) => ({
-          field: "path" in e ? e.path : "unknown",
-          message: e.msg,
-        }));
-        return res.status(400).json({
-          success: false,
-          error: "VALIDATION_ERROR",
-          message: "Ошибка валидации данных",
-          details,
-        });
-      }
-
-      const sessionId = req.params.id;
-      if (!mongoose.Types.ObjectId.isValid(sessionId)) {
-        return res.status(400).json({
-          success: false,
-          error: "BAD_REQUEST",
-          message: "Некорректный id сессии",
-        });
-      }
-
-      const session = await GameSessionModel.findById(sessionId).lean();
-      if (!session) {
-        return res.status(404).json({
-          success: false,
-          error: "NOT_FOUND",
-          message: "Сессия не найдена",
-        });
-      }
-
-      const viewport = req.body.viewport as { panX?: number; panY?: number; scale?: number } | undefined;
-      const objects =
-        (req.body.objects as Array<{
-          key?: string;
-          version?: number;
-          type: string;
-          x?: number;
-          y?: number;
-          sortOrder?: number;
-          props?: Record<string, unknown>;
-        }>) ?? [];
-
-      const sessionOid = new mongoose.Types.ObjectId(sessionId);
-
-      if (viewport !== undefined) {
-        await SessionStateModel.updateOne(
-          { gameSessionId: sessionOid },
-          {
-            $set: {
-              gameSessionId: sessionOid,
-              viewport: {
-                panX: viewport.panX ?? 0,
-                panY: viewport.panY ?? 0,
-                scale: viewport.scale ?? 1,
-              },
-              updatedAt: new Date(),
-            },
-          },
-          { upsert: true }
-        );
-      }
-
-      await TableObjectModel.deleteMany({ gameSessionId: sessionOid });
-      if (objects.length > 0) {
-        await TableObjectModel.insertMany(
-          objects.map((o) => ({
-            gameSessionId: sessionOid,
-            key: o.key ?? new mongoose.Types.ObjectId().toString(),
-            version: o.version ?? 1,
-            // Compatibility:
-            // - legacy object: { type, x, y, props }
-            // - transitional: { type, props: { tabletop: TabletopBaseObject } }
-            // - tabletop: { type: "shape"|"text"|"image", props: TabletopBaseObject }
-            type:
-              o.props && typeof o.props === "object" && "transform" in o.props && "type" in o.props
-                ? String((o.props as unknown as TabletopBaseObject).type)
-                : o.props && typeof o.props === "object" && "tabletop" in o.props
-                  ? String((o.props as { tabletop?: TabletopBaseObject }).tabletop?.type ?? o.type)
-                  : String(o.type),
-            x:
-              o.props && typeof o.props === "object" && "transform" in o.props
-                ? Number((o.props as unknown as TabletopBaseObject).transform.position.x ?? 0)
-                : o.props && typeof o.props === "object" && "tabletop" in o.props
-                  ? Number((o.props as { tabletop?: TabletopBaseObject }).tabletop?.transform.position.x ?? 0)
-                  : Number(o.x ?? 0),
-            y:
-              o.props && typeof o.props === "object" && "transform" in o.props
-                ? Number((o.props as unknown as TabletopBaseObject).transform.position.y ?? 0)
-                : o.props && typeof o.props === "object" && "tabletop" in o.props
-                  ? Number((o.props as { tabletop?: TabletopBaseObject }).tabletop?.transform.position.y ?? 0)
-                  : Number(o.y ?? 0),
-            sortOrder: o.sortOrder ?? 0,
-            props:
-              o.props && typeof o.props === "object" && "transform" in o.props && "type" in o.props
-                ? (o.props as unknown as TabletopBaseObject)
-                : o.props && typeof o.props === "object" && "tabletop" in o.props
-                  ? (o.props as { tabletop?: TabletopBaseObject }).tabletop ?? {}
-                  : (o.props ?? {}),
-          }))
-        );
-      }
-
+      await GameSessionsService.saveState(req.params.id, {
+        viewport: req.body.viewport,
+        objects: req.body.objects as IncomingTableObject[] | undefined,
+      });
       return res.json({ success: true });
     } catch (err) {
       next(err);

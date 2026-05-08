@@ -1,74 +1,8 @@
 import mongoose from "mongoose";
+import type { AppliedOp, TablePatchOp } from "@dnd-table/shared";
 import { TableObjectModel } from "./table-object.model";
 
-export type TablePatchAction = "create" | "update" | "delete";
-
-export type TablePatchOp =
-  | {
-      opId: string;
-      action: "create";
-      key: string;
-      object: {
-        type: string;
-        x: number;
-        y: number;
-        sortOrder?: number;
-        props?: Record<string, unknown>;
-      };
-    }
-  | {
-      opId: string;
-      action: "update";
-      key: string;
-      baseVersion: number;
-      patch: {
-        x?: number;
-        y?: number;
-        sortOrder?: number;
-        props?: Record<string, unknown>;
-      };
-    }
-  | {
-      opId: string;
-      action: "delete";
-      key: string;
-      baseVersion: number;
-    };
-
-export type AppliedOp =
-  | {
-      opId: string;
-      action: "create";
-      key: string;
-      version: number;
-      object: {
-        type: string;
-        x: number;
-        y: number;
-        sortOrder: number;
-        props: Record<string, unknown>;
-      };
-    }
-  | {
-      opId: string;
-      action: "update";
-      key: string;
-      baseVersion: number;
-      version: number;
-      patch: {
-        x?: number;
-        y?: number;
-        sortOrder?: number;
-        props?: Record<string, unknown>;
-      };
-    }
-  | {
-      opId: string;
-      action: "delete";
-      key: string;
-      baseVersion: number;
-      version: number;
-    };
+export type { AppliedOp, TablePatchAction, TablePatchOp } from "@dnd-table/shared";
 
 export interface ApplyPatchResult {
   applied: AppliedOp[];
@@ -121,8 +55,7 @@ export async function applyTablePatches(params: {
             props: (created.props ?? {}) as Record<string, unknown>,
           },
         });
-      } catch (e: any) {
-        // Duplicate key -> conflict
+      } catch {
         const current = await TableObjectModel.findOne({ gameSessionId: sessionOid, key: op.key })
           .select({ version: 1 })
           .lean();
@@ -205,4 +138,3 @@ export async function applyTablePatches(params: {
 
   return { applied, conflicts };
 }
-

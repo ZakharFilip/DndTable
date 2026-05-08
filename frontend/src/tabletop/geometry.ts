@@ -1,8 +1,37 @@
+import type { TabletopBaseObject } from "@dnd-table/shared";
 import { CHIP_RADIUS, VIEW_MARGIN } from "./constants";
 import type { TableObjectState } from "./model";
 
 export type WorldPoint = { x: number; y: number };
 export type WorldRect = { left: number; right: number; top: number; bottom: number };
+
+/**
+ * Normalizes the various ways an object stores its size:
+ *   - chip: `metadata.kind === "chip"`, optional `radius`
+ *   - everything else: `metadata.width` / `metadata.height` with defaults
+ *
+ * Centralizing this kills the `(o.obj.metadata as any).kind/.width/.height`
+ * casts that used to be sprinkled across renderer / hit-test / handles / page.
+ */
+export interface ObjectSize {
+  width: number;
+  height: number;
+  isChip: boolean;
+  radius: number;
+  kind?: string;
+}
+
+export function getObjectSize(obj: TabletopBaseObject): ObjectSize {
+  const meta = (obj.metadata as { kind?: string; width?: number; height?: number; radius?: number } | undefined) ?? {};
+  const isChip = meta.kind === "chip";
+  return {
+    width: typeof meta.width === "number" ? meta.width : 120,
+    height: typeof meta.height === "number" ? meta.height : 80,
+    isChip,
+    radius: typeof meta.radius === "number" ? meta.radius : CHIP_RADIUS,
+    kind: meta.kind,
+  };
+}
 
 export function screenToWorld(
   sx: number,
@@ -42,15 +71,15 @@ export function getVisibleWorldRect(stagePos: { x: number; y: number }, scale: n
 export function getObjectAabb(o: TableObjectState): WorldRect {
   const x = o.obj.transform.position.x;
   const y = o.obj.transform.position.y;
-  const meta: any = o.obj.metadata ?? {};
+  const size = getObjectSize(o.obj);
 
-  if (meta.kind === "chip") {
-    const r = typeof meta.radius === "number" ? meta.radius : CHIP_RADIUS;
+  if (size.isChip) {
+    const r = size.radius;
     return { left: x - r, right: x + r, top: y - r, bottom: y + r };
   }
 
-  const w = typeof meta.width === "number" ? meta.width : 120;
-  const h = typeof meta.height === "number" ? meta.height : 80;
+  const w = size.width;
+  const h = size.height;
   const deg = o.obj.transform.rotation ?? 0;
   const rad = (deg * Math.PI) / 180;
   if (!deg) return { left: x, top: y, right: x + w, bottom: y + h };
@@ -86,12 +115,12 @@ export function hitObject(worldX: number, worldY: number, objects: TableObjectSt
 
   for (let i = sorted.length - 1; i >= 0; i--) {
     const o = sorted[i];
-    const meta: any = o.obj.metadata ?? {};
+    const size = getObjectSize(o.obj);
     const x = o.obj.transform.position.x;
     const y = o.obj.transform.position.y;
 
-    if (meta.kind === "chip") {
-      const r = typeof meta.radius === "number" ? meta.radius : CHIP_RADIUS;
+    if (size.isChip) {
+      const r = size.radius;
       const dx = worldX - x;
       const dy = worldY - y;
       if (dx * dx + dy * dy <= r * r) return o;
@@ -101,8 +130,8 @@ export function hitObject(worldX: number, worldY: number, objects: TableObjectSt
     const aabb = getObjectAabb(o);
     if (worldX < aabb.left || worldX > aabb.right || worldY < aabb.top || worldY > aabb.bottom) continue;
 
-    const w = typeof meta.width === "number" ? meta.width : 120;
-    const h = typeof meta.height === "number" ? meta.height : 80;
+    const w = size.width;
+    const h = size.height;
     const shape = o.obj.appearance?.shape ?? "rectangle";
 
     // NOTE: rotation-precise hit-test can be added later; for now AABB covers rotated shapes.
