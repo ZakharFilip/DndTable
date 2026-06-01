@@ -27,6 +27,7 @@ import {
   applyBroadcastToLayers,
   applyBroadcastToObjects,
   cloneObj,
+  resolveLayersFromSession,
   type ParsedSession,
 } from "./sessionTable/helpers";
 import type { AppliedOp } from "../tabletop/realtime/TableSync";
@@ -41,6 +42,10 @@ import { ToolsPanel } from "./sessionTable/panels/ToolsPanel";
 import { InspectorPanel } from "./sessionTable/panels/InspectorPanel";
 import { TextEditOverlay } from "./sessionTable/panels/TextEditOverlay";
 import { TableContextMenu } from "./sessionTable/panels/TableContextMenu";
+import { TeamSettingsPanel } from "./sessionTable/panels/TeamSettingsPanel";
+import { useSessionAccess } from "./sessionTable/hooks/useSessionAccess";
+import { filterObjectsForViewer } from "../tabletop/visibility";
+import { getSocket } from "../realtime/socket";
 
 const layerKey = (id: string) => `layer:${id}`;
 
@@ -86,6 +91,8 @@ export default function SessionTablePage() {
     end: { x: number; y: number };
   } | null>(null);
   const [isGrabbing, setIsGrabbing] = useState(false);
+  const [draggingKeys, setDraggingKeys] = useState<string[]>([]);
+  const shouldSyncDefaultLayerRef = useRef(false);
 
   const dragObjectKey = useRef<string | null>(null);
   const dragStartObjPos = useRef<{ x: number; y: number } | null>(null);
@@ -120,17 +127,31 @@ export default function SessionTablePage() {
 
   // ---- Loading & sync ----------------------------------------------------
 
-  const applyData = useCallback((parsed: ParsedSession) => {
-    if (parsed.viewport) {
-      setStagePos({ x: parsed.viewport.panX, y: parsed.viewport.panY });
-      setScale(parsed.viewport.scale);
-    }
-    setLayers(parsed.layers);
-    if (parsed.layers.length > 0) {
-      setActiveLayerId((prev) => prev ?? parsed.layers[0].id);
-    }
-    setObjects(parsed.objects);
-  }, []);
+  const sessionAccess = useSessionAccess(id);
+  const [teamSettingsOpen, setTeamSettingsOpen] = useState(false);
+  const isObjectVisibleRef = useRef(sessionAccess.isObjectVisible);
+  useEffect(() => {
+    isObjectVisibleRef.current = sessionAccess.isObjectVisible;
+  }, [sessionAccess.isObjectVisible]);
+
+  const applyData = useCallback(
+    (parsed: ParsedSession) => {
+      if (parsed.viewport) {
+        setStagePos({ x: parsed.viewport.panX, y: parsed.viewport.panY });
+        setScale(parsed.viewport.scale);
+      }
+      const { layers: resolvedLayers, shouldSyncDefaultLayer } = resolveLayersFromSession(
+        parsed.layers,
+        parsed.objects
+      );
+      shouldSyncDefaultLayerRef.current = shouldSyncDefaultLayer;
+      setLayers(resolvedLayers);
+      setActiveLayerId((prev) => prev ?? resolvedLayers[0]?.id ?? null);
+      setObjects(parsed.objects);
+      sessionAccess.setFromFull(parsed.access, parsed.viewer);
+    },
+    [sessionAccess.setFromFull]
+  );
 
   const { loadStatus, fetchFull } = useTableData(id);
   useInitialLoad(id, fetchFull, applyData);
@@ -152,6 +173,18 @@ export default function SessionTablePage() {
     onBroadcast,
   });
 
+  useEffect(() => {
+    if (!id) return;
+    const socket = getSocket();
+    const onAccessChanged = (payload: { tableId?: string }) => {
+      if (payload?.tableId === id) void sessionAccess.refetch();
+    };
+    socket.on("access:changed", onAccessChanged);
+    return () => {
+      socket.off("access:changed", onAccessChanged);
+    };
+  }, [id, sessionAccess.refetch]);
+
   // ---- History & mutations ----------------------------------------------
 
   const { push: pushHistory, undo: undoHistory, redo: redoHistory } = useTableHistory();
@@ -160,7 +193,8 @@ export default function SessionTablePage() {
     createObject,
     commitObject,
     commitObjectWith,
-    deleteObject,
+    commitObjectsBatch,
+    deleteObjects,
     applyHistoryOps,
     createLayer,
     updateLayer,
@@ -173,17 +207,23 @@ export default function SessionTablePage() {
     setLayers,
     setSelectedKey,
     setSelectedKeys,
+    canPerform: sessionAccess.can,
   });
 
   const undo = useCallback(() => undoHistory(applyHistoryOps), [undoHistory, applyHistoryOps]);
   const redo = useCallback(() => redoHistory(applyHistoryOps), [redoHistory, applyHistoryOps]);
 
   const deleteSelected = useCallback(() => {
-    const key = selectedKey ?? selectedKeys[0] ?? null;
-    if (!key) return;
+    const keys =
+      selectedKeys.length > 0
+        ? selectedKeys
+        : selectedKey
+          ? [selectedKey]
+          : [];
+    if (keys.length === 0) return;
     contextKeyRef.current = null;
-    deleteObject(key);
-  }, [selectedKey, selectedKeys, deleteObject]);
+    deleteObjects(keys);
+  }, [selectedKey, selectedKeys, deleteObjects]);
 
   // ---- Copy/paste --------------------------------------------------------
 
@@ -233,14 +273,19 @@ export default function SessionTablePage() {
         scale,
         stageSize: { width, height },
         visibleRect,
-        objects: spatial.query(visibleRect),
+        objects: filterObjectsForViewer({
+          objects: spatial.query(visibleRect),
+          layers,
+          isObjectVisible: (key) => isObjectVisibleRef.current(key),
+        }),
         layers,
         selectedKeys: selectedKeys.length ? selectedKeys : selectedKey ? [selectedKey] : [],
         primarySelectedKey: selectedKey,
         draftRect,
+        bringToFrontKeys: draggingKeys,
       });
     },
-    [stagePos, scale, spatial, draftRect, selectedKey, selectedKeys, layers]
+    [stagePos, scale, spatial, draftRect, selectedKey, selectedKeys, layers, draggingKeys]
   );
 
   useEffect(() => {
@@ -264,24 +309,14 @@ export default function SessionTablePage() {
     };
   }, [editingKey]);
 
-  // Ensure at least one layer exists (synced through patch ops).
+  // Sync default layer to server only once for brand-new sessions (no layer rows yet).
   useEffect(() => {
-    if (!id) return;
-    if (loadStatus !== "loaded") return;
-    if (layersRef.current.length > 0) return;
-    const baseId = "base";
-    const layer: Layer = {
-      id: baseId,
-      key: layerKey(baseId),
-      version: 1,
-      name: "Base",
-      order: 0,
-      visible: true,
-      locked: false,
-    };
-    createLayer(layer);
-    setActiveLayerId(baseId);
-  }, [id, loadStatus, createLayer]);
+    if (!id || loadStatus !== "loaded") return;
+    if (!shouldSyncDefaultLayerRef.current) return;
+    shouldSyncDefaultLayerRef.current = false;
+    const base = layers.find((l) => l.id === "base");
+    if (base) createLayer(base);
+  }, [id, loadStatus, layers, createLayer]);
 
   // ---- Mouse handlers ----------------------------------------------------
 
@@ -302,7 +337,7 @@ export default function SessionTablePage() {
   }, []);
 
   const visibleObjects = useCallback(() => {
-    const visible = spatial.query(
+    const inView = spatial.query(
       getVisibleWorldRect(
         stagePosRef.current,
         scaleRef.current,
@@ -310,11 +345,10 @@ export default function SessionTablePage() {
         stageSizeRef.current.height
       )
     );
-    return visible.filter((o) => {
-      const lid = o.obj.layerId ?? null;
-      if (!lid) return true;
-      const layer = layersRef.current.find((l) => l.id === lid);
-      return layer ? layer.visible : true;
+    return filterObjectsForViewer({
+      objects: inView,
+      layers: layersRef.current,
+      isObjectVisible: (key) => isObjectVisibleRef.current(key),
     });
   }, [spatial]);
 
@@ -375,6 +409,9 @@ export default function SessionTablePage() {
         return;
       }
 
+      const visible = visibleObjects();
+
+      // Handles: pick before body hit-test (rotate handle sits outside the shape).
       if (currentTool === "select" && selectedKey) {
         const sel = objectsRef.current.find((o) => o.key === selectedKey);
         const meta = (sel?.obj.metadata as { kind?: string } | undefined) ?? {};
@@ -402,13 +439,11 @@ export default function SessionTablePage() {
                 world,
               });
             }
-            dragObjectKey.current = selectedKey;
             return;
           }
         }
       }
 
-      const visible = visibleObjects();
       const hit = hitObject(world.x, world.y, visible);
       if (hit) {
         const lid = hit.obj.layerId ?? null;
@@ -458,6 +493,7 @@ export default function SessionTablePage() {
                   .filter((o) => o.obj.groupId === hit.obj.groupId)
                   .map((o) => o.key)
               : [hit.key];
+        setDraggingKeys(keys);
         controllerRef.current?.startDrag({
           keys,
           startWorld: world,
@@ -590,16 +626,21 @@ export default function SessionTablePage() {
       }
     }
 
+    const transformKey = controllerRef.current?.endTransform();
+    if (transformKey) {
+      const cur = objectsRef.current.find((o) => o.key === transformKey);
+      if (cur) commitObjectWith(transformKey, cur.obj);
+    }
+
     const draggedKey = dragObjectKey.current;
     if (draggedKey) {
       const movedKeys = controllerRef.current?.endDrag() ?? [draggedKey];
+      if (movedKeys.length > 0) commitObjectsBatch(movedKeys);
+
       const touched = movedKeys
         .map((k) => objectsRef.current.find((o) => o.key === k))
         .filter(Boolean) as TableObjectState[];
       if (touched.length > 0) {
-        // Commit each moved object via the same op pipeline.
-        for (const t of touched) commitObjectWith(t.key, t.obj);
-
         const before = dragSnapshotRef.current;
         if (before && before.size > 0) {
           const undoOps = [];
@@ -626,13 +667,13 @@ export default function SessionTablePage() {
     }
 
     setIsGrabbing(false);
+    setDraggingKeys([]);
     controllerRef.current?.endPan();
     dragObjectKey.current = null;
     dragStartObjPos.current = null;
-    controllerRef.current?.endTransform();
     dragSnapshotRef.current = new Map();
     lastWorldRef.current = null;
-  }, [id, currentTool, createObject, commitObjectWith, pushHistory, visibleObjects]);
+  }, [id, currentTool, createObject, commitObjectWith, commitObjectsBatch, pushHistory, visibleObjects]);
 
   const handleMouseLeave = useCallback(() => handleMouseUp(), [handleMouseUp]);
 
@@ -724,7 +765,27 @@ export default function SessionTablePage() {
       className="fixed inset-0 flex flex-col bg-gray-200 overflow-hidden"
       style={{ height: "100vh", width: "100vw" }}
     >
-      <TableHeader id={id} loadStatus={loadStatus} syncStatus={syncStatus} onFlushNow={flushNow} />
+      <TableHeader
+        id={id}
+        loadStatus={loadStatus}
+        syncStatus={syncStatus}
+        onFlushNow={flushNow}
+        onOpenTeamSettings={() => setTeamSettingsOpen(true)}
+      />
+
+      {teamSettingsOpen && sessionAccess.access && id && (
+        <TeamSettingsPanel
+          sessionId={id}
+          access={sessionAccess.access}
+          canManage={sessionAccess.canManageTeams}
+          onClose={() => setTeamSettingsOpen(false)}
+          onChanged={async () => {
+            await sessionAccess.refetch();
+            const parsed = await fetchFull();
+            if (parsed) applyData(parsed);
+          }}
+        />
+      )}
 
       <div className="flex-1 min-h-0 w-full overflow-hidden flex">
         <ToolsPanel
@@ -756,7 +817,7 @@ export default function SessionTablePage() {
             const reader = new FileReader();
             reader.onload = () => {
               const sprite = typeof reader.result === "string" ? reader.result : "";
-              if (sprite) createImageAtCenter(sprite);
+              if (sprite) void createImageAtCenter(sprite);
             };
             reader.readAsDataURL(img);
           }}
@@ -851,6 +912,14 @@ export default function SessionTablePage() {
           onCommit={commitObject}
           onGroup={groupSelection}
           onUngroup={ungroupSelection}
+          sessionId={id}
+          access={sessionAccess.access}
+          canManagePermissions={sessionAccess.canManageTeams}
+          onAccessChanged={async () => {
+            await sessionAccess.refetch();
+            const parsed = await fetchFull();
+            if (parsed) applyData(parsed);
+          }}
         />
       </div>
     </div>

@@ -34,8 +34,23 @@ export class CanvasRenderer {
     selectedKeys: string[];
     primarySelectedKey: string | null;
     draftRect: { start: { x: number; y: number }; end: { x: number; y: number } } | null;
+    /** Drawn last so dragged objects appear above overlapping rotated shapes. */
+    bringToFrontKeys?: string[];
   }) {
-    const { ctx, stagePos, scale, stageSize, visibleRect, objects, layers, selectedKeys, primarySelectedKey, draftRect } = params;
+    const {
+      ctx,
+      stagePos,
+      scale,
+      stageSize,
+      visibleRect,
+      objects,
+      layers,
+      selectedKeys,
+      primarySelectedKey,
+      draftRect,
+      bringToFrontKeys = [],
+    } = params;
+    const frontSet = new Set(bringToFrontKeys);
     const width = stageSize.width;
     const height = stageSize.height;
 
@@ -74,7 +89,7 @@ export class CanvasRenderer {
     }
     ctx.stroke();
 
-    // visible + sorted
+    // visible + sorted (objects being dragged render on top)
     const filtered = objects
       .filter((o) => {
         const lid = o.obj.layerId ?? null;
@@ -84,6 +99,9 @@ export class CanvasRenderer {
       })
       .slice()
       .sort((a, b) => {
+        const af = frontSet.has(a.key) ? 1 : 0;
+        const bf = frontSet.has(b.key) ? 1 : 0;
+        if (af !== bf) return af - bf;
         const az = a.obj.transform.position.z ?? 0;
         const bz = b.obj.transform.position.z ?? 0;
         if (az !== bz) return az - bz;

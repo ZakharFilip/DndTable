@@ -1,3 +1,5 @@
+import { anchorWorldAtStart, resizeFromPointer } from "./resizeGeometry";
+
 export type StagePos = { x: number; y: number };
 export type StageSize = { width: number; height: number };
 
@@ -128,7 +130,7 @@ export class TableController {
         key: string;
         handle: "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
         start: { x: number; y: number; width: number; height: number; rotation: number };
-        startPointer: { x: number; y: number };
+        anchorWorld: { x: number; y: number };
       } = null;
 
   startRotate(params: {
@@ -160,12 +162,14 @@ export class TableController {
     const w = typeof meta.width === "number" ? meta.width : 120;
     const h = typeof meta.height === "number" ? meta.height : 80;
     const rotation = params.obj.transform.rotation ?? 0;
+    const start = { x, y, width: w, height: h, rotation };
+    const anchorWorld = anchorWorldAtStart({ ...start, handle: params.handle });
     this.transform = {
       kind: "resize",
       key: params.key,
       handle: params.handle,
-      start: { x, y, width: w, height: h, rotation },
-      startPointer: params.world,
+      start,
+      anchorWorld,
     };
   }
 
@@ -183,30 +187,12 @@ export class TableController {
     }
 
     if (mode.kind === "resize") {
-      if (mode.start.rotation) return params.objects; // MVP: resize only unrotated
-      const minSize = 4;
-      let left = mode.start.x;
-      let top = mode.start.y;
-      let right = mode.start.x + mode.start.width;
-      let bottom = mode.start.y + mode.start.height;
-      const dx = params.world.x - mode.startPointer.x;
-      const dy = params.world.y - mode.startPointer.y;
-
-      if (mode.handle.includes("e")) right = right + dx;
-      if (mode.handle.includes("w")) left = left + dx;
-      if (mode.handle.includes("s")) bottom = bottom + dy;
-      if (mode.handle.includes("n")) top = top + dy;
-
-      const width = Math.max(minSize, right - left);
-      const height = Math.max(minSize, bottom - top);
-      if (right - left < minSize) {
-        if (mode.handle.includes("w")) left = right - width;
-        else right = left + width;
-      }
-      if (bottom - top < minSize) {
-        if (mode.handle.includes("n")) top = bottom - height;
-        else bottom = top + height;
-      }
+      const next = resizeFromPointer({
+        handle: mode.handle,
+        start: mode.start,
+        anchorWorld: mode.anchorWorld,
+        pointerWorld: params.world,
+      });
 
       return params.objects.map((o) => {
         if (o.key !== mode.key) return o;
@@ -215,8 +201,11 @@ export class TableController {
           ...o,
           obj: {
             ...o.obj,
-            transform: { ...o.obj.transform, position: { ...o.obj.transform.position, x: left, y: top } },
-            metadata: { ...meta, width: width, height: height, kind: meta.kind ?? "shape" },
+            transform: {
+              ...o.obj.transform,
+              position: { ...o.obj.transform.position, x: next.x, y: next.y },
+            },
+            metadata: { ...meta, width: next.width, height: next.height, kind: meta.kind ?? "shape" },
           },
         };
       });

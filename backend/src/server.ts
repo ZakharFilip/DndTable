@@ -16,6 +16,7 @@ import { healthRouter } from './shared/health.js';
 import { errorHandler } from './shared/errorHandler.js'; // ✅ ДОБАВЛЕНО
 import authRouter from './modules/auth/auth.router';// ✅ ДОБАВЛЕНО
 import gamesessionsRouter from './modules/gamesessions/gamesessions.router';
+import accessRouter from './modules/access/access.router.js';
 import { setIoInstance } from "./shared/io.js";
 
 const PORT = Number(process.env.PORT || 4000);
@@ -35,31 +36,31 @@ async function main() {
   app.use(cors({ origin: SOCKET_CORS_ORIGIN, credentials: true }));
   app.use(express.json()); // ✅ ЛУЧШЕ чем bodyParser для Express 4.16+
 
-  app.use(
-    session({
-      name: SESSION_COOKIE_NAME,
-      secret: SESSION_SECRET,
-      resave: false,
-      saveUninitialized: false,
-      rolling: true,
-      store: MongoStore.create({
-        client: mongoose.connection.getClient(),
-        collectionName: "sessions",
-        stringify: false,
-      }),
-      cookie: {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        maxAge: SESSION_MAX_AGE_MS,
-      },
-    })
-  );
+  const sessionMiddleware = session({
+    name: SESSION_COOKIE_NAME,
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    rolling: true,
+    store: MongoStore.create({
+      client: mongoose.connection.getClient(),
+      collectionName: "sessions",
+      stringify: false,
+    }),
+    cookie: {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: SESSION_MAX_AGE_MS,
+    },
+  });
+  app.use(sessionMiddleware);
   
   // ✅ ДОБАВЛЕНО: Auth routes
   app.use('/auth', authRouter);
 
   app.use('/api/sessions', gamesessionsRouter);
+  app.use('/api/sessions/:id/access', accessRouter);
 
   // Health check (оставлен ваш роутер)
   app.use('/health', healthRouter);
@@ -73,7 +74,7 @@ async function main() {
   });
 
   setIoInstance(io);
-  registerRealtime(io);
+  registerRealtime(io, sessionMiddleware);
 
   httpServer.listen(PORT, () => {
     console.log(`🎮 DnD Backend listening on http://localhost:${PORT}`); // ✅ УЛУЧШЕНО

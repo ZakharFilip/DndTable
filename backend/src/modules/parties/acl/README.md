@@ -1,15 +1,9 @@
-# ACL (права)
+# ACL (права) — party/scene (будущее)
 
-Задача: проверка прав на действия (GM/Teams/Players + overrides).
+Для **интерактивного стола** (game sessions) реализован отдельный модуль:
 
-Интерфейсы:
-- `can(userId, action, scope): boolean`
-- Действия: `party.*`, `scene.*`, `object.*`, `asset.*`
+- [`backend/src/modules/access/README.md`](../../access/README.md)
+- Домен: `@dnd-table/shared` → `src/access/` (`PermissionResolver`, `VisibilityResolver`)
 
-Сделать:
-- Матрица разрешений, наследование от команд, оверрайды на игрока
-- Middleware `requirePermission(action, scope)`
-
-Готово, когда:
-- Любой API/сокет вызов проходит единый чек прав
+Этот каталог (`parties/acl`) останется для прав редактора партии (`party.*`, `scene.*`) при вертикали 2/3.
 

@@ -1,4 +1,5 @@
 import type { TabletopBaseObject } from "@dnd-table/shared";
+import type { AccessSnapshot, ViewerContext } from "@dnd-table/shared";
 import type { SessionFullDto } from "../../api/sessions";
 import type { AppliedOp } from "../../tabletop/realtime/TableSync";
 import {
@@ -7,6 +8,85 @@ import {
   type Layer,
   type TableObjectState,
 } from "../../tabletop/model";
+
+const DEFAULT_BASE_LAYER_ID = "base";
+
+export function defaultBaseLayer(): Layer {
+  return {
+    id: DEFAULT_BASE_LAYER_ID,
+    key: `layer:${DEFAULT_BASE_LAYER_ID}`,
+    version: 1,
+    name: "Base",
+    order: 0,
+    visible: true,
+    locked: false,
+  };
+}
+
+/**
+ * Layers are stored as `type: "layer"` rows. If none exist but objects
+ * reference layerId, reconstruct layer list instead of creating duplicates.
+ */
+export function resolveLayersFromSession(
+  layerRows: Layer[],
+  objects: TableObjectState[]
+): { layers: Layer[]; shouldSyncDefaultLayer: boolean } {
+  if (layerRows.length > 0) {
+    return { layers: layerRows, shouldSyncDefaultLayer: false };
+  }
+
+  const ids = new Set<string>();
+  for (const o of objects) {
+    if (o.obj.layerId) ids.add(o.obj.layerId);
+  }
+
+  if (ids.size > 0) {
+    const layers = Array.from(ids)
+      .map((id, order) => ({
+        id,
+        key: `layer:${id}`,
+        version: 1,
+        name: id === DEFAULT_BASE_LAYER_ID ? "Base" : `Layer ${id}`,
+        order,
+        visible: true,
+        locked: false,
+      }))
+      .sort((a, b) => a.order - b.order);
+    return { layers, shouldSyncDefaultLayer: false };
+  }
+
+  return { layers: [defaultBaseLayer()], shouldSyncDefaultLayer: true };
+}
+
+/** Fit image into max box preserving aspect ratio. */
+export function fitImageDimensions(
+  naturalWidth: number,
+  naturalHeight: number,
+  maxW = 480,
+  maxH = 480
+): { width: number; height: number } {
+  if (naturalWidth <= 0 || naturalHeight <= 0) {
+    return { width: 240, height: 160 };
+  }
+  const scale = Math.min(maxW / naturalWidth, maxH / naturalHeight, 1);
+  return {
+    width: Math.max(8, Math.round(naturalWidth * scale)),
+    height: Math.max(8, Math.round(naturalHeight * scale)),
+  };
+}
+
+export function loadImageNaturalSize(sprite: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () =>
+      resolve({
+        width: img.naturalWidth || 240,
+        height: img.naturalHeight || 160,
+      });
+    img.onerror = () => resolve({ width: 240, height: 160 });
+    img.src = sprite;
+  });
+}
 
 export const CLIP_PREFIX = "dnd-table/tabletop-object:";
 
@@ -20,6 +100,8 @@ export interface ParsedSession {
   viewport: { panX: number; panY: number; scale: number } | null;
   layers: Layer[];
   objects: TableObjectState[];
+  access?: AccessSnapshot;
+  viewer?: ViewerContext;
 }
 
 export function parseSessionFull(data: SessionFullDto): ParsedSession {
@@ -31,7 +113,13 @@ export function parseSessionFull(data: SessionFullDto): ParsedSession {
   const objects = data.objects
     .map((o) => objectFromDto(o))
     .filter((x): x is TableObjectState => Boolean(x));
-  return { viewport, layers, objects };
+  return {
+    viewport,
+    layers,
+    objects,
+    access: data.access,
+    viewer: data.viewer,
+  };
 }
 
 export function cloneObj(o: TabletopBaseObject): TabletopBaseObject {

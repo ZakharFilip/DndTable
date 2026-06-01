@@ -7,9 +7,16 @@ interface TableHeaderProps {
   loadStatus: LoadStatus;
   syncStatus: SyncStatus;
   onFlushNow: () => void;
+  onOpenTeamSettings?: () => void;
 }
 
-export function TableHeader({ id, loadStatus, syncStatus, onFlushNow }: TableHeaderProps) {
+export function TableHeader({
+  id,
+  loadStatus,
+  syncStatus,
+  onFlushNow,
+  onOpenTeamSettings,
+}: TableHeaderProps) {
   return (
     <header className="shrink-0 flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
       <div className="flex items-center gap-4">
@@ -31,6 +38,16 @@ export function TableHeader({ id, loadStatus, syncStatus, onFlushNow }: TableHea
         )}
       </div>
       <div className="flex items-center gap-2">
+        {onOpenTeamSettings && (
+          <button
+            type="button"
+            onClick={onOpenTeamSettings}
+            disabled={loadStatus !== "loaded"}
+            className="px-3 py-1.5 rounded border border-gray-300 text-sm hover:bg-gray-50 disabled:opacity-50"
+          >
+            Team Settings
+          </button>
+        )}
         <button
           type="button"
           onClick={onFlushNow}

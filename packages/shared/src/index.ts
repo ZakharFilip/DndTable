@@ -111,6 +111,7 @@ export const TabletopBaseObjectSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional().default({}),
   groupId: z.string().optional().nullable(),
   layerId: z.string().optional().nullable(),
+  ownerUserId: z.string().optional().nullable(),
 });
 export type TabletopBaseObject = z.infer<typeof TabletopBaseObjectSchema>;
 
@@ -188,4 +189,6 @@ export type AppliedOp =
       baseVersion: number;
       version: number;
     };
+
+export * from "./access/index.js";
 

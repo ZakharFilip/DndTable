@@ -1,5 +1,7 @@
 import type { TabletopBaseObject } from "@dnd-table/shared";
+import type { AccessSnapshot } from "@dnd-table/shared";
 import type { Layer, TableObjectState } from "../../../tabletop/model";
+import { ObjectPermissionsSection } from "./ObjectPermissionsSection";
 
 interface InspectorPanelProps {
   selected: TableObjectState | null;
@@ -9,6 +11,10 @@ interface InspectorPanelProps {
   onCommit: (key: string) => void;
   onGroup: () => void;
   onUngroup: () => void;
+  sessionId?: string;
+  access?: AccessSnapshot | null;
+  canManagePermissions?: boolean;
+  onAccessChanged?: () => void;
 }
 
 type Meta = {
@@ -28,17 +34,35 @@ export function InspectorPanel({
   onCommit,
   onGroup,
   onUngroup,
+  sessionId,
+  access,
+  canManagePermissions = false,
+  onAccessChanged,
 }: InspectorPanelProps) {
   const locked = Boolean(selectedLayer?.locked);
+  const permissionObjectKeys =
+    selectedKeys.length > 0 ? selectedKeys : selected ? [selected.key] : [];
 
   return (
     <aside className="shrink-0 w-72 bg-white border-l border-gray-200 p-3 overflow-auto">
       <div className="text-xs font-medium text-gray-500 mb-2">Свойства</div>
-      {!selected && <div className="text-sm text-gray-500">Выберите объект.</div>}
+      {!selected && selectedKeys.length === 0 && (
+        <div className="text-sm text-gray-500">Выберите объект.</div>
+      )}
       {selected && (
         <div className="space-y-3">
+          {selectedKeys.length > 1 && (
+            <div className="text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-1">
+              Выбрано объектов: {selectedKeys.length}
+            </div>
+          )}
           <div className="text-xs text-gray-500">
             key: <span className="font-mono">{selected.key}</span> · v{selected.version}
+            {selectedKeys.length > 1 && (
+              <span className="block text-gray-400 mt-0.5">
+                Основной объект для координат и цвета
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -219,6 +243,16 @@ export function InspectorPanel({
               />
             </label>
           </div>
+
+          {sessionId && access && onAccessChanged && permissionObjectKeys.length > 0 && (
+            <ObjectPermissionsSection
+              sessionId={sessionId}
+              objectKeys={permissionObjectKeys}
+              access={access}
+              canManage={canManagePermissions}
+              onChanged={onAccessChanged}
+            />
+          )}
         </div>
       )}
     </aside>

@@ -5,6 +5,18 @@ import { TableObjectModel } from "./table-object.model";
 import { SessionStateModel } from "./session-state.model";
 import { applyTablePatches, type ApplyPatchResult, type TablePatchOp } from "./table-patch";
 import { HttpError } from "../../shared/HttpError";
+import { AccessBootstrap } from "../access/AccessBootstrap.js";
+import {
+  AccessSnapshotService,
+  SessionParticipantService,
+} from "../access/index.js";
+import {
+  PermissionResolver,
+  VisibilityResolver,
+  type AccessSnapshot,
+  type ViewerContext,
+} from "@dnd-table/shared";
+import { PatchAuthorization } from "../access/PatchAuthorization.js";
 
 export interface IncomingTableObject {
   key?: string;
@@ -79,6 +91,8 @@ export const GameSessionsService = {
       createdBy: userId,
     });
 
+    await AccessBootstrap.seedForSession(String(session._id), userId);
+
     return {
       id: String(session._id),
       name: session.name,
@@ -121,15 +135,49 @@ export const GameSessionsService = {
     }));
   },
 
-  async getFull(sessionId: string) {
+  async getFull(sessionId: string, userId?: string) {
     const session = await findSessionOrThrow(sessionId);
 
-    const [objects, state] = await Promise.all([
+    if (userId) {
+      await SessionParticipantService.assertCanAccessSession(sessionId, userId);
+      const isParticipant = await SessionParticipantService.isParticipant(sessionId, userId);
+      if (!isParticipant && String(session.createdBy) === userId) {
+        await SessionParticipantService.join(sessionId, userId);
+      } else if (!isParticipant && !session.isPrivate) {
+        await SessionParticipantService.join(sessionId, userId);
+      }
+    }
+
+    const [objects, state, access] = await Promise.all([
       TableObjectModel.find({ gameSessionId: sessionId })
         .sort({ sortOrder: 1, _id: 1 })
         .lean(),
       SessionStateModel.findOne({ gameSessionId: sessionId }).lean(),
+      userId ? AccessSnapshotService.load(sessionId) : Promise.resolve(null),
     ]);
+
+    let viewer: ViewerContext | undefined;
+    if (userId && access) {
+      const p = access.participants.find((x) => x.userId === userId);
+      viewer = { userId, teamIds: p?.teamIds ?? [] };
+    }
+
+    const mappedObjects = objects.map((o) => ({
+      id: String(o._id),
+      key: (o as { key?: string }).key ?? String(o._id),
+      type: o.type,
+      x: o.x,
+      y: o.y,
+      sortOrder: o.sortOrder ?? 0,
+      props: o.props ?? {},
+      version: (o as { version?: number }).version ?? 1,
+    }));
+
+    let visibleObjects = mappedObjects;
+    if (userId && access) {
+      const vis = new VisibilityResolver(access);
+      visibleObjects = mappedObjects.filter((o) => vis.isVisible(userId, o.key));
+    }
 
     return {
       session: {
@@ -141,21 +189,40 @@ export const GameSessionsService = {
         createdAt: session.createdAt,
       },
       state: state?.viewport ? { viewport: state.viewport } : null,
-      objects: objects.map((o) => ({
-        id: String(o._id),
-        key: (o as { key?: string }).key ?? String(o._id),
-        type: o.type,
-        x: o.x,
-        y: o.y,
-        sortOrder: o.sortOrder ?? 0,
-        props: o.props ?? {},
-        version: (o as { version?: number }).version ?? 1,
-      })),
+      objects: visibleObjects,
+      ...(access ? { access: access as AccessSnapshot } : {}),
+      ...(viewer ? { viewer } : {}),
     };
   },
 
-  async applyPatch(sessionId: string, ops: TablePatchOp[]): Promise<ApplyPatchResult> {
+  async joinSession(sessionId: string, userId: string) {
+    return SessionParticipantService.join(sessionId, userId);
+  },
+
+  async getAccess(sessionId: string, userId: string) {
+    await SessionParticipantService.assertCanAccessSession(sessionId, userId);
+    const isParticipant = await SessionParticipantService.isParticipant(sessionId, userId);
+    if (!isParticipant) {
+      await SessionParticipantService.join(sessionId, userId);
+    }
+    const access = await AccessSnapshotService.load(sessionId);
+    if (!access) {
+      throw new HttpError(500, "ACCESS_NOT_INITIALIZED", "ACL сессии не инициализирован");
+    }
+    const viewer = await SessionParticipantService.getViewerContext(sessionId, userId);
+    return { access, viewer: viewer ?? { userId, teamIds: [] } };
+  },
+
+  async applyPatch(
+    sessionId: string,
+    ops: TablePatchOp[],
+    userId?: string
+  ): Promise<ApplyPatchResult> {
     await findSessionOrThrow(sessionId);
+    if (userId) {
+      await SessionParticipantService.assertCanAccessSession(sessionId, userId);
+      await PatchAuthorization.assertOpsAllowed(sessionId, userId, ops);
+    }
     return applyTablePatches({ gameSessionId: sessionId, ops });
   },
 
@@ -164,9 +231,20 @@ export const GameSessionsService = {
     payload: {
       viewport?: { panX?: number; panY?: number; scale?: number };
       objects?: IncomingTableObject[];
-    }
+    },
+    userId?: string
   ) {
     await findSessionOrThrow(sessionId);
+    if (userId) {
+      await SessionParticipantService.assertCanAccessSession(sessionId, userId);
+      const snapshot = await AccessSnapshotService.load(sessionId);
+      if (snapshot) {
+        const resolver = new PermissionResolver(snapshot);
+        if (!resolver.hasPermission(userId, "ModifyPermissions")) {
+          throw new HttpError(403, "FORBIDDEN", "Недостаточно прав для сохранения состояния");
+        }
+      }
+    }
 
     const sessionOid = new mongoose.Types.ObjectId(sessionId);
 

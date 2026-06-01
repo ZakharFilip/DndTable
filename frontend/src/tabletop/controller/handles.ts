@@ -45,16 +45,20 @@ export function pickHandle(params: {
 
   const { handleWorld, rotWorld } = getHandlesWorld(params.obj, params.scale);
   const rotScreen = worldToScreen(rotWorld.x, rotWorld.y, params.stagePos, params.scale);
-  const dx = params.pointerScreen.x - rotScreen.x;
-  const dy = params.pointerScreen.y - rotScreen.y;
-  if (dx * dx + dy * dy <= handlePx * handlePx) return { kind: "rotate" };
+  const rotDist = Math.hypot(params.pointerScreen.x - rotScreen.x, params.pointerScreen.y - rotScreen.y);
+
+  type Candidate = { dist: number; pick: { kind: "rotate" } | { kind: "resize"; handle: ResizeHandle } };
+  const candidates: Candidate[] = [];
+  if (rotDist <= handlePx) candidates.push({ dist: rotDist, pick: { kind: "rotate" } });
 
   for (const [h, p] of Object.entries(handleWorld) as Array<[ResizeHandle, { x: number; y: number }]>) {
     const s = worldToScreen(p.x, p.y, params.stagePos, params.scale);
-    if (Math.abs(params.pointerScreen.x - s.x) <= handlePx && Math.abs(params.pointerScreen.y - s.y) <= handlePx) {
-      return { kind: "resize", handle: h };
-    }
+    const dist = Math.hypot(params.pointerScreen.x - s.x, params.pointerScreen.y - s.y);
+    if (dist <= handlePx) candidates.push({ dist, pick: { kind: "resize", handle: h } });
   }
-  return null;
+
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => a.dist - b.dist);
+  return candidates[0].pick;
 }
 

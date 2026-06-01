@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import type { TabletopBaseObject } from "@dnd-table/shared";
+import type { Permission, TabletopBaseObject } from "@dnd-table/shared";
 import type { HistoryOp } from "../../../tabletop/history/HistoryManager";
 import type { TablePatchOp } from "../../../tabletop/realtime/TableSync";
 import type { Layer, TableObjectState } from "../../../tabletop/model";
@@ -15,6 +15,16 @@ interface UseObjectMutationsParams {
   setLayers: Dispatch<SetStateAction<Layer[]>>;
   setSelectedKey: Dispatch<SetStateAction<string | null>>;
   setSelectedKeys: Dispatch<SetStateAction<string[]>>;
+  canPerform?: (permission: Permission, objectKey?: string) => boolean;
+}
+
+function assertCan(
+  canPerform: UseObjectMutationsParams["canPerform"],
+  permission: Permission,
+  objectKey?: string
+) {
+  if (!canPerform) return true;
+  return canPerform(permission, objectKey);
 }
 
 /**
@@ -36,10 +46,12 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
     setLayers,
     setSelectedKey,
     setSelectedKeys,
+    canPerform,
   } = params;
 
   const createObject = useCallback(
     (key: string, obj: TabletopBaseObject) => {
+      if (!assertCan(canPerform, "CreateObject", key)) return;
       const withLayer =
         activeLayerId && !obj.layerId ? { ...obj, layerId: activeLayerId } : obj;
       const sortOrder = objectsRef.current.length;
@@ -74,6 +86,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
 
   const commitObject = useCallback(
     (key: string) => {
+      if (!assertCan(canPerform, "ChangeObjectProperties", key)) return;
       const current = objectsRef.current.find((o) => o.key === key);
       if (!current) return;
       const baseVersion = current.version;
@@ -99,11 +112,12 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         },
       ]);
     },
-    [enqueueOps, objectsRef, setObjects]
+    [canPerform, enqueueOps, objectsRef, setObjects]
   );
 
   const commitObjectWith = useCallback(
     (key: string, nextObj: TabletopBaseObject) => {
+      if (!assertCan(canPerform, "ChangeObjectProperties", key)) return;
       const current = objectsRef.current.find((o) => o.key === key);
       if (!current) return;
       const baseVersion = current.version;
@@ -130,8 +144,40 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
     [enqueueOps, objectsRef, setObjects]
   );
 
+  /** Batch commit after drag (single optimistic bump + one enqueue batch). */
+  const commitObjectsBatch = useCallback(
+    (keys: string[]) => {
+      if (keys.some((k) => !assertCan(canPerform, "ModifyTransform", k))) return;
+      const touched = keys
+        .map((k) => objectsRef.current.find((o) => o.key === k))
+        .filter(Boolean) as TableObjectState[];
+      if (touched.length === 0) return;
+
+      const keySet = new Set(keys);
+      setObjects((prev) =>
+        prev.map((o) => (keySet.has(o.key) ? { ...o, version: o.version + 1 } : o))
+      );
+
+      enqueueOps(
+        touched.map((o) => ({
+          opId: newOpId(),
+          action: "update" as const,
+          key: o.key,
+          baseVersion: o.version,
+          patch: {
+            x: o.obj.transform.position.x,
+            y: o.obj.transform.position.y,
+            props: o.obj as unknown as Record<string, unknown>,
+          },
+        }))
+      );
+    },
+    [enqueueOps, objectsRef, setObjects]
+  );
+
   const deleteObject = useCallback(
     (key: string) => {
+      if (!assertCan(canPerform, "DeleteObject", key)) return;
       const current = objectsRef.current.find((o) => o.key === key);
       if (!current) return;
       const baseVersion = current.version;
@@ -262,11 +308,63 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
     [enqueueOps, setLayers]
   );
 
+  const deleteObjects = useCallback(
+    (keys: string[]) => {
+      const unique = [...new Set(keys)];
+      if (unique.length === 0) return;
+
+      const removed: Array<{
+        key: string;
+        obj: TabletopBaseObject;
+        sortOrder: number;
+        baseVersion: number;
+      }> = [];
+      for (const key of unique) {
+        const current = objectsRef.current.find((o) => o.key === key);
+        if (!current) continue;
+        removed.push({
+          key,
+          obj: cloneObj(current.obj),
+          sortOrder: current.sortOrder,
+          baseVersion: current.version,
+        });
+      }
+      if (removed.length === 0) return;
+
+      const removeSet = new Set(removed.map((r) => r.key));
+      setObjects((prev) => prev.filter((o) => !removeSet.has(o.key)));
+      setSelectedKey(null);
+      setSelectedKeys([]);
+
+      enqueueOps(
+        removed.map((r) => ({
+          opId: newOpId(),
+          action: "delete" as const,
+          key: r.key,
+          baseVersion: r.baseVersion,
+        }))
+      );
+
+      pushHistory({
+        undo: removed.map((r) => ({
+          kind: "create" as const,
+          key: r.key,
+          obj: r.obj,
+          sortOrder: r.sortOrder,
+        })),
+        redo: removed.map((r) => ({ kind: "delete" as const, key: r.key })),
+      });
+    },
+    [enqueueOps, pushHistory, objectsRef, setObjects, setSelectedKey, setSelectedKeys]
+  );
+
   return {
     createObject,
     commitObject,
     commitObjectWith,
+    commitObjectsBatch,
     deleteObject,
+    deleteObjects,
     applyHistoryOps,
     createLayer,
     updateLayer,

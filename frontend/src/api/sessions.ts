@@ -1,3 +1,4 @@
+import type { AccessSnapshot, ViewerContext } from "@dnd-table/shared";
 import http from "./http";
 
 export interface GameSessionDto {
@@ -30,6 +31,8 @@ export interface SessionFullDto {
   session: GameSessionDto;
   state: { viewport: SessionViewportDto } | null;
   objects: TableObjectDto[];
+  access?: AccessSnapshot;
+  viewer?: ViewerContext;
 }
 
 export interface CreateSessionPayload {

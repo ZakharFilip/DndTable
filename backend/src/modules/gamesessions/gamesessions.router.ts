@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { body } from "express-validator";
 import { requireAuth } from "../../shared/requireAuth";
+import { requireSessionParticipant } from "../../shared/requireSessionParticipant";
 import { validate } from "../../shared/validate";
 import { requireValidObjectId } from "../../shared/requireValidObjectId";
 import { GameSessionsService, type IncomingTableObject } from "./gamesessions.service";
@@ -56,13 +57,44 @@ router.get("/public", async (_req: Request, res: Response, next: NextFunction) =
   }
 });
 
+// POST /api/sessions/:id/join — войти в сессию (участник + команда по умолчанию)
+router.post(
+  "/:id/join",
+  requireValidObjectId("id"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = (req as Request & { userId: string }).userId;
+      const result = await GameSessionsService.joinSession(req.params.id, userId);
+      return res.json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// GET /api/sessions/:id/access — снимок ACL
+router.get(
+  "/:id/access",
+  requireValidObjectId("id"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = (req as Request & { userId: string }).userId;
+      const data = await GameSessionsService.getAccess(req.params.id, userId);
+      return res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // GET /api/sessions/:id/full — полная загрузка сессии
 router.get(
   "/:id/full",
   requireValidObjectId("id"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await GameSessionsService.getFull(req.params.id);
+      const userId = (req as Request & { userId: string }).userId;
+      const data = await GameSessionsService.getFull(req.params.id, userId);
       return res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -74,15 +106,17 @@ router.get(
 router.post(
   "/:id/patch",
   requireValidObjectId("id"),
+  requireSessionParticipant,
   [body("clientId").isString().notEmpty(), body("ops").isArray()],
   validate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const sessionId = req.params.id;
+      const userId = (req as Request & { userId: string }).userId;
       const clientId = String(req.body.clientId);
       const ops = req.body.ops as TablePatchOp[];
 
-      const result = await GameSessionsService.applyPatch(sessionId, ops);
+      const result = await GameSessionsService.applyPatch(sessionId, ops, userId);
       if (result.conflicts.length > 0) {
         return res.status(409).json({
           success: false,
@@ -110,6 +144,7 @@ router.post(
 router.put(
   "/:id/state",
   requireValidObjectId("id"),
+  requireSessionParticipant,
   [
     body("viewport").optional().isObject(),
     body("viewport.panX").optional().isNumeric(),
@@ -120,10 +155,15 @@ router.put(
   validate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await GameSessionsService.saveState(req.params.id, {
-        viewport: req.body.viewport,
-        objects: req.body.objects as IncomingTableObject[] | undefined,
-      });
+      const userId = (req as Request & { userId: string }).userId;
+      await GameSessionsService.saveState(
+        req.params.id,
+        {
+          viewport: req.body.viewport,
+          objects: req.body.objects as IncomingTableObject[] | undefined,
+        },
+        userId
+      );
       return res.json({ success: true });
     } catch (err) {
       next(err);

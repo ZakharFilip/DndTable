@@ -7,7 +7,7 @@ import {
   toTabletopText,
   type TableObjectState,
 } from "../../../tabletop/model";
-import { CLIP_PREFIX } from "../helpers";
+import { CLIP_PREFIX, fitImageDimensions, loadImageNaturalSize } from "../helpers";
 
 interface UseCopyPasteParams {
   id: string | undefined;
@@ -58,10 +58,12 @@ export function useCopyPaste(params: UseCopyPasteParams) {
   }, [stagePosRef, scaleRef, stageSizeRef]);
 
   const createImageAtCenter = useCallback(
-    (sprite: string) => {
+    async (sprite: string) => {
       const { x, y } = screenCenterWorld();
+      const natural = await loadImageNaturalSize(sprite);
+      const { width, height } = fitImageDimensions(natural.width, natural.height);
       const key = nextObjectKey("image");
-      createObject(key, toTabletopImage({ key, x, y, width: 240, height: 160, sprite }));
+      createObject(key, toTabletopImage({ key, x, y, width, height, sprite }));
     },
     [createObject, screenCenterWorld]
   );
@@ -201,7 +203,7 @@ export function useCopyPaste(params: UseCopyPasteParams) {
           const reader = new FileReader();
           reader.onload = () => {
             const sprite = typeof reader.result === "string" ? reader.result : "";
-            if (sprite) createImageAtCenter(sprite);
+            if (sprite) void createImageAtCenter(sprite);
           };
           reader.readAsDataURL(file);
           e.preventDefault();

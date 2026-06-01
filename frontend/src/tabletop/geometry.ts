@@ -105,6 +105,40 @@ export function objectInRect(o: TableObjectState, r: WorldRect) {
   return !(aabb.right < r.left || aabb.left > r.right || aabb.bottom < r.top || aabb.top > r.bottom);
 }
 
+/** Hit-test in object local space (accounts for rotation). */
+export function pointInObject(obj: TabletopBaseObject, worldX: number, worldY: number): boolean {
+  const size = getObjectSize(obj);
+  const x = obj.transform.position.x;
+  const y = obj.transform.position.y;
+
+  if (size.isChip) {
+    const dx = worldX - x;
+    const dy = worldY - y;
+    return dx * dx + dy * dy <= size.radius * size.radius;
+  }
+
+  const w = size.width;
+  const h = size.height;
+  const deg = obj.transform.rotation ?? 0;
+  const rad = (deg * Math.PI) / 180;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const lx = worldX - cx;
+  const ly = worldY - cy;
+  const px = lx * Math.cos(-rad) - ly * Math.sin(-rad);
+  const py = lx * Math.sin(-rad) + ly * Math.cos(-rad);
+
+  const shape = obj.appearance?.shape ?? "rectangle";
+  if (shape === "ellipse") {
+    const rx = w / 2;
+    const ry = h / 2;
+    const nx = rx > 0 ? px / rx : 0;
+    const ny = ry > 0 ? py / ry : 0;
+    return nx * nx + ny * ny <= 1;
+  }
+  return px >= -w / 2 && px <= w / 2 && py >= -h / 2 && py <= h / 2;
+}
+
 export function hitObject(worldX: number, worldY: number, objects: TableObjectState[]): TableObjectState | null {
   const sorted = objects.slice().sort((a, b) => {
     const az = a.obj.transform.position.z ?? 0;
@@ -115,37 +149,11 @@ export function hitObject(worldX: number, worldY: number, objects: TableObjectSt
 
   for (let i = sorted.length - 1; i >= 0; i--) {
     const o = sorted[i];
-    const size = getObjectSize(o.obj);
-    const x = o.obj.transform.position.x;
-    const y = o.obj.transform.position.y;
-
-    if (size.isChip) {
-      const r = size.radius;
-      const dx = worldX - x;
-      const dy = worldY - y;
-      if (dx * dx + dy * dy <= r * r) return o;
+    const aabb = getObjectAabb(o);
+    if (worldX < aabb.left || worldX > aabb.right || worldY < aabb.top || worldY > aabb.bottom) {
       continue;
     }
-
-    const aabb = getObjectAabb(o);
-    if (worldX < aabb.left || worldX > aabb.right || worldY < aabb.top || worldY > aabb.bottom) continue;
-
-    const w = size.width;
-    const h = size.height;
-    const shape = o.obj.appearance?.shape ?? "rectangle";
-
-    // NOTE: rotation-precise hit-test can be added later; for now AABB covers rotated shapes.
-    if (shape === "ellipse") {
-      const cx = x + w / 2;
-      const cy = y + h / 2;
-      const rx = w / 2;
-      const ry = h / 2;
-      const nx = rx > 0 ? (worldX - cx) / rx : 0;
-      const ny = ry > 0 ? (worldY - cy) / ry : 0;
-      if (nx * nx + ny * ny <= 1) return o;
-    } else {
-      if (worldX >= x && worldX <= x + w && worldY >= y && worldY <= y + h) return o;
-    }
+    if (pointInObject(o.obj, worldX, worldY)) return o;
   }
 
   return null;

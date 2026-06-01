@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getPublicSessions } from "../api/sessions";
+import { joinSession } from "../api/access";
 
 interface PublicSession {
   id: string;
@@ -68,7 +69,14 @@ export default function JoinSessionPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigate(`/sessions/${s.id}`)}
+                  onClick={async () => {
+                    try {
+                      await joinSession(s.id);
+                      navigate(`/sessions/${s.id}`);
+                    } catch {
+                      setError("Не удалось войти в сессию");
+                    }
+                  }}
                   className="shrink-0 px-3 py-1.5 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-500"
                 >
                   Войти

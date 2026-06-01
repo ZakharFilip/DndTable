@@ -22,10 +22,11 @@
 - FE: подключение сокета, получение/применение оповещений
 - Готово, когда: 2 клиента видят синхронные изменения
 
-## Вертикаль 5: ACL (BE+FE)
-- BE: матрица прав, PermissionResolver, middleware проверки
-- FE: простые настройки прав для GM (назначение ролей/команд)
-- Готово, когда: действия ограничены правами, UI их меняет
+## Вертикаль 5: ACL (BE+FE) — в работе / MVP tabletop
+- BE: `backend/src/modules/access/` — команды, grants, `PermissionResolver` / `VisibilityResolver` в `@dnd-table/shared`
+- REST: `/api/sessions/:id/access/*`, join, enforcement на `table:patch` + socket session
+- FE: Team Settings (header), разрешения объекта в Inspector, `useSessionAccess`
+- Готово, когда: действия ограничены правами, UI их меняет (базовый MVP реализован)
 
 ## Вертикаль 6: Assets (BE+FE)
 - BE: загрузка/раздача файлов, привязка к party/scene, ACL
