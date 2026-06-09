@@ -98,6 +98,11 @@ export function registerRealtime(io: Server, sessionMiddleware: RequestHandler) 
   io.use(socketSessionMiddleware(sessionMiddleware));
 
   io.on("connection", (socket: Socket) => {
+    const userId = getUserId(socket);
+    if (userId) {
+      socket.join(`user:${userId}`);
+    }
+
     socket.on("joinParty", (p: JoinPayload) => handleJoinParty(socket, p));
     socket.on("joinScene", (p: JoinPayload) => handleJoinScene(socket, p));
     socket.on("applyOperation", (p: { partyId?: string; sceneId?: string }) =>

@@ -10,6 +10,7 @@ import SessionTablePage from './pages/SessionTablePage';
 import GameRecordsPage from './pages/GameRecordsPage';
 import ProfilePage from './pages/ProfilePage';
 import { RedirectIfAuth, RequireAuth } from "./app/RouteGuards";
+import { AppShell } from "./app/AppShell";
 import './App.css';
 
 export default function App() {
@@ -19,13 +20,15 @@ export default function App() {
         <Route path="/register" element={<RedirectIfAuth><RegisterPage /></RedirectIfAuth>} />
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<RedirectIfAuth><Login /></RedirectIfAuth>} />
-        <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
-        <Route path="/sessions" element={<RequireAuth><SessionsListPage /></RequireAuth>} />
-        <Route path="/sessions/join" element={<RequireAuth><JoinSessionPage /></RequireAuth>} />
-        <Route path="/sessions/create" element={<RequireAuth><CreateSessionPage /></RequireAuth>} />
+        <Route element={<RequireAuth><AppShell /></RequireAuth>}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/sessions" element={<SessionsListPage />} />
+          <Route path="/sessions/join" element={<JoinSessionPage />} />
+          <Route path="/sessions/create" element={<CreateSessionPage />} />
+          <Route path="/records" element={<GameRecordsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+        </Route>
         <Route path="/sessions/:id" element={<RequireAuth><SessionTablePage /></RequireAuth>} />
-        <Route path="/records" element={<RequireAuth><GameRecordsPage /></RequireAuth>} />
-        <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/party/:id" element={<RequireAuth><Party /></RequireAuth>} />
       </Routes>
     </BrowserRouter>

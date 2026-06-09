@@ -14,6 +14,7 @@ import {
   playerLabel,
   sortedParticipants,
 } from "./teamSettingsHelpers";
+import { SessionInviteModal } from "./SessionInviteModal";
 
 const PERM_LABELS: Record<Permission, string> = {
   MoveObject: "Перемещение",
@@ -31,7 +32,8 @@ interface TeamSettingsPanelProps {
   sessionId: string;
   access: AccessSnapshot;
   canManage: boolean;
-  onClose: () => void;
+  open: boolean;
+  onToggleOpen: () => void;
   onChanged: () => void;
 }
 
@@ -63,7 +65,8 @@ export function TeamSettingsPanel({
   sessionId,
   access,
   canManage,
-  onClose,
+  open,
+  onToggleOpen,
   onChanged,
 }: TeamSettingsPanelProps) {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(
@@ -74,6 +77,7 @@ export function TeamSettingsPanel({
   const [addPlayerId, setAddPlayerId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showInvite, setShowInvite] = useState(false);
 
   const teams = useMemo(() => sortedTeams(access.teams), [access.teams]);
   const players = useMemo(() => sortedParticipants(access), [access.participants]);
@@ -103,18 +107,37 @@ export function TeamSettingsPanel({
     }
   };
 
+  if (!open) {
+    return null;
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/30">
-      <div className="w-full max-w-lg h-full bg-white shadow-xl flex flex-col">
-        <header className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-          <h2 className="text-lg font-semibold">Team Settings</h2>
+    <>
+      <aside className="st-teams">
+        <header className="st-panel-header justify-between gap-2">
           <button
             type="button"
-            className="text-sm text-gray-600 hover:text-gray-900"
-            onClick={onClose}
+            onClick={onToggleOpen}
+            className="st-panel-collapse-btn"
+            style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)" }}
+            title="Свернуть панель команд"
           >
-            Закрыть
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
           </button>
+          <h2 className="text-base font-semibold flex-1 text-center">Команды</h2>
+          <div className="flex items-center gap-2">
+            {canManage && (
+              <button
+                type="button"
+                className="text-sm px-2 py-1 bg-indigo-600 text-white rounded"
+                onClick={() => setShowInvite(true)}
+              >
+                Пригласить
+              </button>
+            )}
+          </div>
         </header>
 
         <div className="flex-1 overflow-auto p-4 space-y-4">
@@ -386,7 +409,10 @@ export function TeamSettingsPanel({
             </>
           )}
         </div>
-      </div>
-    </div>
+      </aside>
+      {showInvite && (
+        <SessionInviteModal sessionId={sessionId} onClose={() => setShowInvite(false)} />
+      )}
+    </>
   );
 }

@@ -14,15 +14,12 @@ import { TableController } from "../tabletop/controller/TableController";
 import { pickHandle } from "../tabletop/controller/handles";
 import {
   nextObjectKey,
-  randomColor,
-  toTabletopChip,
-  toTabletopRect,
   toTabletopText,
   type Layer,
   type TableObjectState,
   type Tool,
 } from "../tabletop/model";
-
+import { createTabletopShape, type ShapeVariantId } from "../tabletop/shapes";
 import {
   applyBroadcastToLayers,
   applyBroadcastToObjects,
@@ -37,8 +34,8 @@ import { useTableHistory } from "./sessionTable/hooks/useTableHistory";
 import { useObjectMutations } from "./sessionTable/hooks/useObjectMutations";
 import { useCopyPaste } from "./sessionTable/hooks/useCopyPaste";
 import { useKeyboardShortcuts } from "./sessionTable/hooks/useKeyboardShortcuts";
-import { TableHeader } from "./sessionTable/panels/TableHeader";
-import { ToolsPanel } from "./sessionTable/panels/ToolsPanel";
+import { SessionChrome } from "./sessionTable/panels/SessionChrome";
+import { ToolsToolbar } from "./sessionTable/panels/ToolsToolbar";
 import { InspectorPanel } from "./sessionTable/panels/InspectorPanel";
 import { TextEditOverlay } from "./sessionTable/panels/TextEditOverlay";
 import { TableContextMenu } from "./sessionTable/panels/TableContextMenu";
@@ -46,6 +43,7 @@ import { TeamSettingsPanel } from "./sessionTable/panels/TeamSettingsPanel";
 import { useSessionAccess } from "./sessionTable/hooks/useSessionAccess";
 import { filterObjectsForViewer } from "../tabletop/visibility";
 import { getSocket } from "../realtime/socket";
+import "./sessionTable/SessionTableLayout.css";
 
 const layerKey = (id: string) => `layer:${id}`;
 
@@ -73,6 +71,7 @@ export default function SessionTablePage() {
   useEffect(() => { stageSizeRef.current = stageSize; }, [stageSize]);
 
   const [currentTool, setCurrentTool] = useState<Tool>("select");
+  const [activeShapeVariant, setActiveShapeVariant] = useState<ShapeVariantId>("rectangle");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -128,7 +127,8 @@ export default function SessionTablePage() {
   // ---- Loading & sync ----------------------------------------------------
 
   const sessionAccess = useSessionAccess(id);
-  const [teamSettingsOpen, setTeamSettingsOpen] = useState(false);
+  const [teamsOpen, setTeamsOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
   const isObjectVisibleRef = useRef(sessionAccess.isObjectVisible);
   useEffect(() => {
     isObjectVisibleRef.current = sessionAccess.isObjectVisible;
@@ -163,7 +163,11 @@ export default function SessionTablePage() {
 
   const onBroadcast = useCallback((applied: AppliedOp[]) => {
     setLayers((prev) => applyBroadcastToLayers(prev, applied));
-    setObjects((prev) => applyBroadcastToObjects(prev, applied));
+    setObjects((prev) => {
+      const next = applyBroadcastToObjects(prev, applied);
+      objectsRef.current = next;
+      return next;
+    });
   }, []);
 
   const { syncStatus, enqueueOps, flushNow } = useTableSync({
@@ -227,11 +231,13 @@ export default function SessionTablePage() {
 
   // ---- Copy/paste --------------------------------------------------------
 
-  const { copySelection, pasteSelection, createImageAtCenter } = useCopyPaste({
+  const { copySelection, pasteSelection, importImageSprite } = useCopyPaste({
     id,
     editingKey,
+    currentTool,
     primaryKey: primarySelectionKey,
     selectedKeys,
+    activeShapeVariant,
     objectsRef,
     stagePosRef,
     scaleRef,
@@ -239,6 +245,7 @@ export default function SessionTablePage() {
     setSelectedKey,
     setSelectedKeys,
     createObject,
+    commitObjectWith,
   });
 
   useKeyboardShortcuts({ editingKey, onUndo: undo, onRedo: redo, onDelete: deleteSelected });
@@ -282,10 +289,22 @@ export default function SessionTablePage() {
         selectedKeys: selectedKeys.length ? selectedKeys : selectedKey ? [selectedKey] : [],
         primarySelectedKey: selectedKey,
         draftRect,
+        draftShapeVariant: currentTool === "shape" ? activeShapeVariant : null,
         bringToFrontKeys: draggingKeys,
       });
     },
-    [stagePos, scale, spatial, draftRect, selectedKey, selectedKeys, layers, draggingKeys]
+    [
+      stagePos,
+      scale,
+      spatial,
+      draftRect,
+      currentTool,
+      activeShapeVariant,
+      selectedKey,
+      selectedKeys,
+      layers,
+      draggingKeys,
+    ]
   );
 
   useEffect(() => {
@@ -596,14 +615,11 @@ export default function SessionTablePage() {
 
       if (w >= 4 && h >= 4) {
         const key = nextObjectKey("shape");
-        const obj = toTabletopRect({
-          key,
-          x: left,
-          y: top,
-          width: w,
-          height: h,
-          fillColor: "#60a5fa",
-        });
+        const obj = createTabletopShape(
+          activeShapeVariant,
+          { x: left, y: top, width: w, height: h },
+          { key, fillColor: "#60a5fa" }
+        );
         createObject(key, obj);
       }
     }
@@ -673,7 +689,16 @@ export default function SessionTablePage() {
     dragStartObjPos.current = null;
     dragSnapshotRef.current = new Map();
     lastWorldRef.current = null;
-  }, [id, currentTool, createObject, commitObjectWith, commitObjectsBatch, pushHistory, visibleObjects]);
+  }, [
+    id,
+    currentTool,
+    activeShapeVariant,
+    createObject,
+    commitObjectWith,
+    commitObjectsBatch,
+    pushHistory,
+    visibleObjects,
+  ]);
 
   const handleMouseLeave = useCallback(() => handleMouseUp(), [handleMouseUp]);
 
@@ -695,16 +720,6 @@ export default function SessionTablePage() {
 
   // ---- Misc UI actions ---------------------------------------------------
 
-  const addChip = useCallback(() => {
-    const sp = stagePosRef.current;
-    const sc = scaleRef.current;
-    const centerX = (stageSize.width / 2 - sp.x) / sc;
-    const centerY = (stageSize.height / 2 - sp.y) / sc;
-    const key = nextObjectKey("chip");
-    const obj = toTabletopChip({ key, x: centerX, y: centerY, color: randomColor() });
-    createObject(key, obj);
-  }, [stageSize.width, stageSize.height, createObject]);
-
   const onAddLayer = useCallback(() => {
     const newId = `l-${Date.now()}`;
     createLayer({
@@ -719,9 +734,24 @@ export default function SessionTablePage() {
     if (!activeLayerId) setActiveLayerId(newId);
   }, [createLayer, layers.length, activeLayerId]);
 
+  const onReorderLayers = useCallback(
+    (orderedIds: string[]) => {
+      const byId = new Map(layers.map((l) => [l.id, l]));
+      orderedIds.forEach((layerId, index) => {
+        const layer = byId.get(layerId);
+        if (layer && layer.order !== index) {
+          updateLayer({ ...layer, order: index });
+        }
+      });
+    },
+    [layers, updateLayer]
+  );
+
   const updateObjectLocal = useCallback(
     (key: string, updater: (o: TableObjectState) => TableObjectState) => {
-      setObjects((prev) => prev.map((o) => (o.key === key ? updater(o) : o)));
+      const next = objectsRef.current.map((o) => (o.key === key ? updater(o) : o));
+      objectsRef.current = next;
+      setObjects(next);
     },
     []
   );
@@ -760,68 +790,42 @@ export default function SessionTablePage() {
 
   const editingObject = editingKey ? objects.find((o) => o.key === editingKey) ?? null : null;
 
+  const handleAccessChanged = useCallback(async () => {
+    await sessionAccess.refetch();
+    const parsed = await fetchFull();
+    if (parsed) applyData(parsed);
+  }, [sessionAccess, fetchFull, applyData]);
+
   return (
-    <div
-      className="fixed inset-0 flex flex-col bg-gray-200 overflow-hidden"
-      style={{ height: "100vh", width: "100vw" }}
-    >
-      <TableHeader
-        id={id}
-        loadStatus={loadStatus}
-        syncStatus={syncStatus}
-        onFlushNow={flushNow}
-        onOpenTeamSettings={() => setTeamSettingsOpen(true)}
-      />
-
-      {teamSettingsOpen && sessionAccess.access && id && (
-        <TeamSettingsPanel
-          sessionId={id}
-          access={sessionAccess.access}
-          canManage={sessionAccess.canManageTeams}
-          onClose={() => setTeamSettingsOpen(false)}
-          onChanged={async () => {
-            await sessionAccess.refetch();
-            const parsed = await fetchFull();
-            if (parsed) applyData(parsed);
-          }}
-        />
-      )}
-
-      <div className="flex-1 min-h-0 w-full overflow-hidden flex">
-        <ToolsPanel
-          currentTool={currentTool}
-          onToolChange={setCurrentTool}
-          layers={layers}
-          activeLayerId={activeLayerId}
-          onActivateLayer={setActiveLayerId}
-          onAddLayer={onAddLayer}
-          onToggleLayerVisible={(l) => updateLayer({ ...l, visible: !l.visible })}
-          onToggleLayerLocked={(l) => updateLayer({ ...l, locked: !l.locked })}
-          onAddChip={addChip}
-        />
-
-        <div
-          ref={containerRef}
-          className="flex-1 min-h-0 w-full overflow-hidden relative"
-          style={{
-            cursor:
-              currentTool === "shape" ? "crosshair" : isGrabbing ? "grabbing" : "default",
-          }}
+    <>
+      <div className="st-viewport">
+      <div
+        ref={containerRef}
+        className="st-canvas-host"
+        style={{
+          cursor:
+            currentTool === "shape" || currentTool === "text"
+              ? "crosshair"
+              : isGrabbing
+                ? "grabbing"
+                : "default",
+        }}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
-            if (!id) return;
+            if (!id || editingKey) return;
             const files = Array.from(e.dataTransfer.files || []);
             const img = files.find((f) => f.type.startsWith("image/"));
             if (!img) return;
             const reader = new FileReader();
             reader.onload = () => {
               const sprite = typeof reader.result === "string" ? reader.result : "";
-              if (sprite) void createImageAtCenter(sprite);
+              if (sprite) void importImageSprite(sprite);
             };
             reader.readAsDataURL(img);
           }}
         >
+          <div style={{ width: "100%", height: "100%" }}>
           <TableContextMenu
             onOpenChange={(open) => {
               if (!open) contextKeyRef.current = null;
@@ -841,9 +845,23 @@ export default function SessionTablePage() {
                 ref={canvasRef}
                 width={stageSize.width}
                 height={stageSize.height}
-                className="block w-full h-full"
-                style={{ display: "block" }}
+                className="st-canvas"
                 onWheel={handleWheel}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!id || editingKey) return;
+                  const files = Array.from(e.dataTransfer.files || []);
+                  const img = files.find((f) => f.type.startsWith("image/"));
+                  if (!img) return;
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const sprite = typeof reader.result === "string" ? reader.result : "";
+                    if (sprite) void importImageSprite(sprite);
+                  };
+                  reader.readAsDataURL(img);
+                }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
@@ -875,6 +893,7 @@ export default function SessionTablePage() {
               />
             }
           />
+          </div>
 
           {editingObject && (
             <TextEditOverlay
@@ -902,26 +921,59 @@ export default function SessionTablePage() {
               }}
             />
           )}
-        </div>
+      </div>
+      </div>
 
-        <InspectorPanel
-          selected={selected}
-          selectedLayer={selectedLayer}
-          selectedKeys={selectedKeys}
-          onUpdateLocal={updateObjectLocal}
-          onCommit={commitObject}
-          onGroup={groupSelection}
-          onUngroup={ungroupSelection}
+      <SessionChrome
+        loadStatus={loadStatus}
+        syncStatus={syncStatus}
+        onFlushNow={flushNow}
+        onOpenTeams={() => setTeamsOpen((v) => !v)}
+        teamsOpen={teamsOpen}
+      />
+
+      {sessionAccess.access && id && (
+        <TeamSettingsPanel
           sessionId={id}
           access={sessionAccess.access}
-          canManagePermissions={sessionAccess.canManageTeams}
-          onAccessChanged={async () => {
-            await sessionAccess.refetch();
-            const parsed = await fetchFull();
-            if (parsed) applyData(parsed);
-          }}
+          canManage={sessionAccess.canManageTeams}
+          open={teamsOpen}
+          onToggleOpen={() => setTeamsOpen(false)}
+          onChanged={handleAccessChanged}
         />
-      </div>
-    </div>
+      )}
+
+      <ToolsToolbar
+        currentTool={currentTool}
+        onToolChange={setCurrentTool}
+        activeShapeVariant={activeShapeVariant}
+        onShapeVariantChange={setActiveShapeVariant}
+      />
+
+      <InspectorPanel
+        open={inspectorOpen}
+        onToggleOpen={() => setInspectorOpen((v) => !v)}
+        selected={selected}
+        selectedLayer={selectedLayer}
+        selectedKeys={selectedKeys}
+        layers={layers}
+        activeLayerId={activeLayerId}
+        onActivateLayer={setActiveLayerId}
+        onAddLayer={onAddLayer}
+        onToggleLayerVisible={(l) => updateLayer({ ...l, visible: !l.visible })}
+        onToggleLayerLocked={(l) => updateLayer({ ...l, locked: !l.locked })}
+        onReorderLayers={onReorderLayers}
+        onUpdateLocal={updateObjectLocal}
+        onCommit={commitObject}
+        onCommitWith={commitObjectWith}
+        getObjectByKey={(key) => objectsRef.current.find((o) => o.key === key)?.obj ?? null}
+        onGroup={groupSelection}
+        onUngroup={ungroupSelection}
+        sessionId={id}
+        access={sessionAccess.access}
+        canManagePermissions={sessionAccess.canManageTeams}
+        onAccessChanged={handleAccessChanged}
+      />
+    </>
   );
 }

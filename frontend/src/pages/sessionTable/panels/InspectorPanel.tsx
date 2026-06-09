@@ -1,14 +1,33 @@
 import type { TabletopBaseObject } from "@dnd-table/shared";
 import type { AccessSnapshot } from "@dnd-table/shared";
+import {
+  TRANSPARENT_FILL,
+  attachSprite,
+  detachSprite,
+  hasSprite,
+  isTransparentFill,
+} from "../../../tabletop/appearance";
 import type { Layer, TableObjectState } from "../../../tabletop/model";
+import { LayersSection } from "./LayersSection";
 import { ObjectPermissionsSection } from "./ObjectPermissionsSection";
 
 interface InspectorPanelProps {
+  open: boolean;
+  onToggleOpen: () => void;
   selected: TableObjectState | null;
   selectedLayer: Layer | null;
   selectedKeys: string[];
+  layers: Layer[];
+  activeLayerId: string | null;
+  onActivateLayer: (id: string) => void;
+  onAddLayer: () => void;
+  onToggleLayerVisible: (layer: Layer) => void;
+  onToggleLayerLocked: (layer: Layer) => void;
+  onReorderLayers: (orderedIds: string[]) => void;
   onUpdateLocal: (key: string, updater: (o: TableObjectState) => TableObjectState) => void;
   onCommit: (key: string) => void;
+  onCommitWith: (key: string, obj: TabletopBaseObject) => void;
+  getObjectByKey: (key: string) => TabletopBaseObject | null;
   onGroup: () => void;
   onUngroup: () => void;
   sessionId?: string;
@@ -26,12 +45,30 @@ type Meta = {
 
 const getMeta = (o: TabletopBaseObject): Meta => (o.metadata as Meta | undefined) ?? {};
 
+function fillColorForPicker(fillColor: string | undefined): string {
+  if (!fillColor || isTransparentFill(fillColor) || !fillColor.startsWith("#")) {
+    return "#3b82f6";
+  }
+  return fillColor.length === 7 ? fillColor : "#3b82f6";
+}
+
 export function InspectorPanel({
+  open,
+  onToggleOpen,
   selected,
   selectedLayer,
   selectedKeys,
+  layers,
+  activeLayerId,
+  onActivateLayer,
+  onAddLayer,
+  onToggleLayerVisible,
+  onToggleLayerLocked,
+  onReorderLayers,
   onUpdateLocal,
   onCommit,
+  onCommitWith,
+  getObjectByKey,
   onGroup,
   onUngroup,
   sessionId,
@@ -42,14 +79,61 @@ export function InspectorPanel({
   const locked = Boolean(selectedLayer?.locked);
   const permissionObjectKeys =
     selectedKeys.length > 0 ? selectedKeys : selected ? [selected.key] : [];
+  const showLayers = !selected && selectedKeys.length === 0;
+
+  if (!open) {
+    return (
+      <div className="st-inspector-collapsed">
+        <button
+          type="button"
+          onClick={onToggleOpen}
+          className="st-inspector-tab-btn"
+          title="Открыть инспектор"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <aside className="shrink-0 w-72 bg-white border-l border-gray-200 p-3 overflow-auto">
-      <div className="text-xs font-medium text-gray-500 mb-2">Свойства</div>
-      {!selected && selectedKeys.length === 0 && (
-        <div className="text-sm text-gray-500">Выберите объект.</div>
+    <aside className="st-inspector">
+      <div className="st-panel-header">
+        <button
+          type="button"
+          onClick={onToggleOpen}
+          className="st-panel-collapse-btn"
+          style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)" }}
+          title="Свернуть инспектор"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+        <div className="w-full text-center text-xs font-medium text-gray-500">
+          {showLayers ? "Слои" : "Свойства"}
+        </div>
+      </div>
+      <div className="flex-1 overflow-auto p-3">
+      {showLayers && (
+        <LayersSection
+          layers={layers}
+          activeLayerId={activeLayerId}
+          onActivateLayer={onActivateLayer}
+          onAddLayer={onAddLayer}
+          onToggleLayerVisible={onToggleLayerVisible}
+          onToggleLayerLocked={onToggleLayerLocked}
+          onReorderLayers={onReorderLayers}
+        />
       )}
-      {selected && (
+      {selected && (() => {
+        const sel = selected;
+        const isShape = getMeta(sel.obj).kind === "shape";
+        const spriteAttached = hasSprite(sel.obj);
+        const fillTransparent = isTransparentFill(sel.obj.appearance?.fillColor);
+        return (
         <div className="space-y-3">
           {selectedKeys.length > 1 && (
             <div className="text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-1">
@@ -192,17 +276,86 @@ export function InspectorPanel({
             </div>
           )}
 
+          {isShape && (
+            <div className="space-y-2 border border-gray-100 rounded p-2 bg-gray-50">
+              <div className="text-xs font-medium text-gray-600">Спрайт</div>
+              {spriteAttached && (
+                <p className="text-xs text-gray-500">
+                  Заливка прозрачна — выберите цвет, чтобы подсветить объект поверх спрайта.
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <label
+                  className={[
+                    "px-2 py-1 text-xs border border-gray-200 rounded bg-white hover:bg-gray-50 cursor-pointer",
+                    locked ? "opacity-50 pointer-events-none" : "",
+                  ].join(" ")}
+                >
+                  {spriteAttached ? "Заменить спрайт" : "Загрузить спрайт"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    disabled={locked}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!file) return;
+                      const keyAtPick = selected.key;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const sprite = typeof reader.result === "string" ? reader.result : "";
+                        if (!sprite) return;
+                        const latest = getObjectByKey(keyAtPick) ?? sel.obj;
+                        onCommitWith(keyAtPick, attachSprite(latest, sprite));
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+                {spriteAttached && (
+                  <button
+                    type="button"
+                    disabled={locked}
+                    className="px-2 py-1 text-xs border border-gray-200 rounded bg-white hover:bg-gray-50 disabled:opacity-50"
+                    onClick={() => {
+                      const latest = getObjectByKey(selected.key) ?? sel.obj;
+                      onCommitWith(selected.key, detachSprite(latest));
+                    }}
+                  >
+                    Убрать спрайт
+                  </button>
+                )}
+                {spriteAttached && (
+                  <button
+                    type="button"
+                    disabled={locked || fillTransparent}
+                    className="px-2 py-1 text-xs border border-gray-200 rounded bg-white hover:bg-gray-50 disabled:opacity-50"
+                    onClick={() => {
+                      onUpdateLocal(selected.key, (o) => ({
+                        ...o,
+                        obj: {
+                          ...o.obj,
+                          appearance: { ...(o.obj.appearance ?? {}), fillColor: TRANSPARENT_FILL },
+                        },
+                      }));
+                      onCommit(selected.key);
+                    }}
+                  >
+                    Сбросить заливку
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-2">
             <label className="text-xs text-gray-600">
-              Fill
+              Fill{fillTransparent ? " (прозрачный)" : ""}
               <input
                 className="mt-1 w-full h-9 border border-gray-300 rounded"
                 type="color"
-                value={
-                  typeof selected.obj.appearance?.fillColor === "string"
-                    ? selected.obj.appearance.fillColor
-                    : "#3b82f6"
-                }
+                value={fillColorForPicker(selected.obj.appearance?.fillColor)}
                 disabled={locked}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -254,7 +407,9 @@ export function InspectorPanel({
             />
           )}
         </div>
-      )}
+        );
+      })()}
+      </div>
     </aside>
   );
 }

@@ -47,6 +47,20 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+// GET /api/sessions/discover — мои + публичные с фильтрами
+router.get("/discover", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as Request & { userId: string }).userId;
+    const q = typeof req.query.q === "string" ? req.query.q : undefined;
+    const onlyPublic = req.query.onlyPublic === "true" || req.query.onlyPublic === "1";
+    const unvisited = req.query.unvisited === "true" || req.query.unvisited === "1";
+    const data = await GameSessionsService.listDiscover(userId, { q, onlyPublic, unvisited });
+    return res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/sessions/public — публичные сессии
 router.get("/public", async (_req: Request, res: Response, next: NextFunction) => {
   try {

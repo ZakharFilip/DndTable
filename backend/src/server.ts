@@ -17,6 +17,11 @@ import { errorHandler } from './shared/errorHandler.js'; // ✅ ДОБАВЛЕН
 import authRouter from './modules/auth/auth.router';// ✅ ДОБАВЛЕНО
 import gamesessionsRouter from './modules/gamesessions/gamesessions.router';
 import accessRouter from './modules/access/access.router.js';
+import usersRouter from './modules/users/users.router.js';
+import friendsRouter from './modules/friends/friends.router.js';
+import inboxRouter from './modules/inbox/inbox.router.js';
+import sessionInvitesRouter from './modules/gamesessions/session-invites/session-invites.router.js';
+import { FriendCodeGenerator } from './modules/users/FriendCodeGenerator.js';
 import { setIoInstance } from "./shared/io.js";
 
 const PORT = Number(process.env.PORT || 4000);
@@ -29,6 +34,7 @@ const SESSION_MAX_AGE_MS = Number(process.env.SESSION_MAX_AGE_MS || 1000 * 60 * 
 async function main() {
   await mongoose.connect(MONGODB_URI);
   console.log('✅ Connected to MongoDB'); // ✅ УЛУЧШЕНО: добавлено подтверждение
+  await FriendCodeGenerator.backfillMissing();
 
   const app = express();
   
@@ -59,7 +65,11 @@ async function main() {
   // ✅ ДОБАВЛЕНО: Auth routes
   app.use('/auth', authRouter);
 
+  app.use('/api/users', usersRouter);
+  app.use('/api/friends', friendsRouter);
+  app.use('/api/inbox', inboxRouter);
   app.use('/api/sessions', gamesessionsRouter);
+  app.use('/api/sessions/:id/invites', sessionInvitesRouter);
   app.use('/api/sessions/:id/access', accessRouter);
 
   // Health check (оставлен ваш роутер)

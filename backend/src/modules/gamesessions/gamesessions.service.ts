@@ -17,6 +17,8 @@ import {
   type ViewerContext,
 } from "@dnd-table/shared";
 import { PatchAuthorization } from "../access/PatchAuthorization.js";
+import { SessionParticipantModel } from "../access/models/session-participant.model.js";
+import { SessionInviteService } from "./session-invites/SessionInviteService.js";
 
 export interface IncomingTableObject {
   key?: string;
@@ -115,6 +117,73 @@ export const GameSessionsService = {
       createdBy: String(s.createdBy),
       createdAt: s.createdAt,
     }));
+  },
+
+  async listDiscover(
+    userId: string,
+    filters: { q?: string; onlyPublic?: boolean; unvisited?: boolean } = {}
+  ) {
+    const userOid = new mongoose.Types.ObjectId(userId);
+    const participantRows = await SessionParticipantModel.find({ userId: userOid })
+      .select({ gameSessionId: 1, meta: 1 })
+      .lean();
+
+    const acceptedInviteIds = await SessionInviteService.listAcceptedSessionIds(userId);
+
+    const mineIds = new Set<string>();
+    for (const p of participantRows) {
+      mineIds.add(String(p.gameSessionId));
+      const promoted = Boolean(
+        p.meta &&
+          typeof p.meta === "object" &&
+          (p.meta as { promotedFromVisitors?: boolean }).promotedFromVisitors
+      );
+      if (promoted) mineIds.add(String(p.gameSessionId));
+    }
+    for (const id of acceptedInviteIds) mineIds.add(id);
+
+    const q = filters.q?.trim();
+    const sessionFilter: Record<string, unknown> = {};
+    if (q) {
+      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      sessionFilter.$or = [
+        { name: { $regex: escaped, $options: "i" } },
+        { description: { $regex: escaped, $options: "i" } },
+      ];
+    }
+
+    const allSessions = await GameSessionModel.find(sessionFilter)
+      .populate("createdBy", "username")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const mapSession = (s: (typeof allSessions)[0], isMine: boolean) => ({
+      id: String(s._id),
+      name: s.name,
+      description: s.description,
+      isPrivate: s.isPrivate,
+      createdBy:
+        typeof s.createdBy === "object" && s.createdBy && "username" in s.createdBy
+          ? (s.createdBy as { username: string }).username
+          : String(s.createdBy),
+      createdAt: (s.createdAt as Date).toISOString(),
+      isMine,
+    });
+
+    let mine = allSessions.filter((s) => mineIds.has(String(s._id))).map((s) => mapSession(s, true));
+    let others = allSessions
+      .filter((s) => !mineIds.has(String(s._id)))
+      .map((s) => mapSession(s, false));
+
+    if (filters.onlyPublic) {
+      others = others.filter((s) => !s.isPrivate);
+    }
+
+    if (filters.unvisited) {
+      mine = [];
+    }
+
+    return { mine, others };
   },
 
   async listPublic() {

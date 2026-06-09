@@ -130,13 +130,15 @@ function TeamPermissionRow({
   const teamOptions = teams.filter((t) => t.id === teamId || !usedTeamIds.has(t.id));
 
   const applyVisibility = (value: VisTri | null) => {
+    const apiValue: "Visible" | "Hidden" | null =
+      value === "Visible" || value === "Hidden" ? value : null;
     run(() =>
       Promise.all(
         objectKeys.map((objectKey) =>
           setObjectVisibilityGrant(sessionId, {
             objectKey,
             teamId,
-            value,
+            value: apiValue,
           })
         )
       )
@@ -144,6 +146,8 @@ function TeamPermissionRow({
   };
 
   const applyPermission = (permission: Permission, value: PermTri | null) => {
+    const apiValue: "Allow" | "Deny" | null =
+      value === "Allow" || value === "Deny" ? value : null;
     run(() =>
       Promise.all(
         objectKeys.map((objectKey) =>
@@ -151,7 +155,7 @@ function TeamPermissionRow({
             objectKey,
             teamId,
             permission,
-            value,
+            value: apiValue,
           })
         )
       )

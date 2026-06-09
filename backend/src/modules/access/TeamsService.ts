@@ -11,6 +11,7 @@ import { TeamUserMemberModel } from "./models/team-user-member.model.js";
 import { SessionAccessConfigModel } from "./models/session-access-config.model.js";
 import { TeamGraph } from "@dnd-table/shared";
 import { AccessSnapshotService } from "./AccessSnapshotService.js";
+import { SessionParticipantModel } from "./models/session-participant.model.js";
 
 async function loadResolver(gameSessionId: string, userId: string) {
   const snapshot = await AccessSnapshotService.load(gameSessionId);
@@ -168,8 +169,32 @@ export const TeamsService = {
     }).lean();
     if (!team) throw new HttpError(404, "NOT_FOUND", "Команда не найдена");
 
+    const visitorsTeam = (await TeamModel.findOne({
+      gameSessionId: new mongoose.Types.ObjectId(gameSessionId),
+      slug: TEAM_SLUG_VISITORS,
+    }).lean()) as { _id: mongoose.Types.ObjectId } | null;
+
+    const targetOid = new mongoose.Types.ObjectId(targetUserId);
+    const newTeamOid = new mongoose.Types.ObjectId(teamId);
+
+    if (visitorsTeam && String(visitorsTeam._id) !== teamId) {
+      const wasVisitor = await TeamUserMemberModel.findOne({
+        teamId: visitorsTeam._id,
+        userId: targetOid,
+      }).lean();
+      if (wasVisitor) {
+        await SessionParticipantModel.updateOne(
+          {
+            gameSessionId: new mongoose.Types.ObjectId(gameSessionId),
+            userId: targetOid,
+          },
+          { $set: { "meta.promotedFromVisitors": true } }
+        );
+      }
+    }
+
     await TeamUserMemberModel.updateOne(
-      { teamId: new mongoose.Types.ObjectId(teamId), userId: new mongoose.Types.ObjectId(targetUserId) },
+      { teamId: newTeamOid, userId: targetOid },
       {},
       { upsert: true }
     );

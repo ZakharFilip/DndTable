@@ -2,14 +2,19 @@ import type { TableObjectState, Layer } from "../model";
 import type { WorldRect } from "../geometry";
 import { GRID_SIZE } from "../constants";
 import { getObjectAabb } from "../geometry";
+import { ShapePainter } from "../appearance/ShapePainter";
+import type { ShapeVariantId } from "../shapes";
+import { ShapeVariantRegistry } from "../shapes";
 
 export class CanvasRenderer {
   private imageCache: Map<string, HTMLImageElement>;
   private onImageLoad: () => void;
+  private shapePainter: ShapePainter;
 
   constructor(imageCache: Map<string, HTMLImageElement>, onImageLoad: () => void) {
     this.imageCache = imageCache;
     this.onImageLoad = onImageLoad;
+    this.shapePainter = new ShapePainter((sprite) => this.getOrLoadImage(sprite));
   }
 
   private getOrLoadImage(sprite: string) {
@@ -34,6 +39,7 @@ export class CanvasRenderer {
     selectedKeys: string[];
     primarySelectedKey: string | null;
     draftRect: { start: { x: number; y: number }; end: { x: number; y: number } } | null;
+    draftShapeVariant?: ShapeVariantId | null;
     /** Drawn last so dragged objects appear above overlapping rotated shapes. */
     bringToFrontKeys?: string[];
   }) {
@@ -48,6 +54,7 @@ export class CanvasRenderer {
       selectedKeys,
       primarySelectedKey,
       draftRect,
+      draftShapeVariant = null,
       bringToFrontKeys = [],
     } = params;
     const frontSet = new Set(bringToFrontKeys);
@@ -188,33 +195,7 @@ export class CanvasRenderer {
         continue;
       }
 
-      const w = typeof meta.width === "number" ? meta.width : 120;
-      const h = typeof meta.height === "number" ? meta.height : 80;
-      const shape = o.obj.appearance?.shape ?? "rectangle";
-      const fill = typeof o.obj.appearance?.fillColor === "string" ? o.obj.appearance.fillColor : "#3b82f6";
-      const stroke = typeof o.obj.appearance?.strokeColor === "string" ? o.obj.appearance.strokeColor : "rgba(0,0,0,0.25)";
-      const deg = o.obj.transform.rotation ?? 0;
-      const rad = (deg * Math.PI) / 180;
-
-      ctx.save();
-      ctx.translate(x + w / 2, y + h / 2);
-      if (deg) ctx.rotate(rad);
-      if (shape === "ellipse") {
-        ctx.beginPath();
-        ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
-        ctx.fillStyle = fill;
-        ctx.fill();
-        ctx.strokeStyle = stroke;
-        ctx.lineWidth = 2 / scale;
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = fill;
-        ctx.fillRect(-w / 2, -h / 2, w, h);
-        ctx.strokeStyle = stroke;
-        ctx.lineWidth = 2 / scale;
-        ctx.strokeRect(-w / 2, -h / 2, w, h);
-      }
-      ctx.restore();
+      this.shapePainter.draw({ ctx, obj: o.obj, scale });
     }
 
     // selection boxes
@@ -300,20 +281,24 @@ export class CanvasRenderer {
 
     // draft rect (shape/text tool)
     if (draftRect) {
-      const x1 = draftRect.start.x;
-      const y1 = draftRect.start.y;
-      const x2 = draftRect.end.x;
-      const y2 = draftRect.end.y;
-      const left = Math.min(x1, x2);
-      const top = Math.min(y1, y2);
-      const w = Math.abs(x2 - x1);
-      const h = Math.abs(y2 - y1);
       ctx.save();
       ctx.globalAlpha = 0.9;
       ctx.setLineDash([6 / scale, 4 / scale]);
       ctx.strokeStyle = "rgba(79,70,229,0.9)";
       ctx.lineWidth = 2 / scale;
-      ctx.strokeRect(left, top, w, h);
+      if (draftShapeVariant) {
+        ShapeVariantRegistry.get(draftShapeVariant).drawDraft(ctx, draftRect, scale);
+      } else {
+        const x1 = draftRect.start.x;
+        const y1 = draftRect.start.y;
+        const x2 = draftRect.end.x;
+        const y2 = draftRect.end.y;
+        const left = Math.min(x1, x2);
+        const top = Math.min(y1, y2);
+        const w = Math.abs(x2 - x1);
+        const h = Math.abs(y2 - y1);
+        ctx.strokeRect(left, top, w, h);
+      }
       ctx.restore();
     }
 

@@ -84,6 +84,7 @@ router.get("/me", async (req: Request, res: Response, next: NextFunction) => {
           email: user.email,
           username: user.username,
           avatar: user.avatar,
+          friendCode: user.friendCode,
         },
       },
     });

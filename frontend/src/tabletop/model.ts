@@ -1,7 +1,8 @@
 import type { TabletopBaseObject } from "@dnd-table/shared";
 import { CHIP_COLORS, CHIP_RADIUS } from "./constants";
+import { createTabletopShape } from "./shapes";
 
-export type Tool = "select" | "shape" | "text" | "image" | "pan";
+export type Tool = "select" | "shape" | "text";
 
 export interface Layer {
   id: string;
@@ -60,25 +61,11 @@ export function toTabletopRect(params: {
   height: number;
   fillColor?: string;
 }): TabletopBaseObject {
-  return {
-    id: params.key,
-    type: "shape",
-    transform: {
-      position: { x: params.x, y: params.y, z: 0 },
-      scale: { x: 1, y: 1 },
-      rotation: 0,
-      lockRotation: false,
-      lockScale: false,
-    },
-    appearance: {
-      shape: "rectangle",
-      fillColor: params.fillColor ?? "#22c55e",
-      strokeColor: "rgba(0,0,0,0.25)",
-    },
-    metadata: { kind: "shape", shape: "rectangle", width: params.width, height: params.height },
-    groupId: null,
-    layerId: null,
-  };
+  return createTabletopShape(
+    "rectangle",
+    { x: params.x, y: params.y, width: params.width, height: params.height },
+    { key: params.key, fillColor: params.fillColor ?? "#22c55e" }
+  );
 }
 
 export function toTabletopText(params: {

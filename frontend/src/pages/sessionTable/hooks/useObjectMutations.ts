@@ -27,6 +27,18 @@ function assertCan(
   return canPerform(permission, objectKey);
 }
 
+function syncSetObjects(
+  objectsRef: MutableRefObject<TableObjectState[]>,
+  setObjects: Dispatch<SetStateAction<TableObjectState[]>>,
+  updater: (prev: TableObjectState[]) => TableObjectState[]
+) {
+  setObjects((prev) => {
+    const next = updater(prev);
+    objectsRef.current = next;
+    return next;
+  });
+}
+
 /**
  * Centralizes how table mutations are turned into:
  *   1) optimistic state updates,
@@ -54,10 +66,12 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       if (!assertCan(canPerform, "CreateObject", key)) return;
       const withLayer =
         activeLayerId && !obj.layerId ? { ...obj, layerId: activeLayerId } : obj;
-      const sortOrder = objectsRef.current.length;
-      const state: TableObjectState = { key, version: 1, sortOrder, obj: withLayer };
-
-      setObjects((prev) => [...prev, state]);
+      let sortOrder = 0;
+      syncSetObjects(objectsRef, setObjects, (prev) => {
+        sortOrder = prev.length;
+        const state: TableObjectState = { key, version: 1, sortOrder, obj: withLayer };
+        return [...prev, state];
+      });
       setSelectedKey(key);
       setSelectedKeys([key]);
 
@@ -81,7 +95,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         redo: [{ kind: "create", key, obj: cloneObj(withLayer), sortOrder }],
       });
     },
-    [activeLayerId, enqueueOps, pushHistory, objectsRef, setObjects, setSelectedKey, setSelectedKeys]
+    [activeLayerId, canPerform, enqueueOps, pushHistory, objectsRef, setObjects, setSelectedKey, setSelectedKeys]
   );
 
   const commitObject = useCallback(
@@ -93,10 +107,11 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       const x = current.obj.transform.position.x;
       const y = current.obj.transform.position.y;
 
-      setObjects((prev) =>
+      syncSetObjects(objectsRef, setObjects, (prev) =>
         prev.map((o) => (o.key === key ? { ...o, version: o.version + 1 } : o))
       );
 
+      const latest = objectsRef.current.find((o) => o.key === key);
       enqueueOps([
         {
           opId: newOpId(),
@@ -107,7 +122,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
             x,
             y,
             sortOrder: current.sortOrder,
-            props: current.obj as unknown as Record<string, unknown>,
+            props: (latest?.obj ?? current.obj) as unknown as Record<string, unknown>,
           },
         },
       ]);
@@ -122,7 +137,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       if (!current) return;
       const baseVersion = current.version;
 
-      setObjects((prev) =>
+      syncSetObjects(objectsRef, setObjects, (prev) =>
         prev.map((o) => (o.key === key ? { ...o, version: o.version + 1, obj: nextObj } : o))
       );
 
@@ -141,7 +156,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         },
       ]);
     },
-    [enqueueOps, objectsRef, setObjects]
+    [canPerform, enqueueOps, objectsRef, setObjects]
   );
 
   /** Batch commit after drag (single optimistic bump + one enqueue batch). */
@@ -172,7 +187,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         }))
       );
     },
-    [enqueueOps, objectsRef, setObjects]
+    [canPerform, enqueueOps, objectsRef, setObjects]
   );
 
   const deleteObject = useCallback(
@@ -193,7 +208,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         redo: [{ kind: "delete", key }],
       });
     },
-    [enqueueOps, pushHistory, objectsRef, setObjects, setSelectedKey, setSelectedKeys]
+    [canPerform, enqueueOps, pushHistory, objectsRef, setObjects, setSelectedKey, setSelectedKeys]
   );
 
   const applyHistoryOps = useCallback(

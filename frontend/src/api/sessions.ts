@@ -1,4 +1,4 @@
-import type { AccessSnapshot, ViewerContext } from "@dnd-table/shared";
+import type { AccessSnapshot, DiscoverSessionDto, ViewerContext } from "@dnd-table/shared";
 import http from "./http";
 
 export interface GameSessionDto {
@@ -53,6 +53,21 @@ export async function getMySessions(): Promise<{ data: { sessions: GameSessionDt
 
 export async function getPublicSessions(): Promise<{ data: { sessions: (GameSessionDto & { createdBy?: string })[] } }> {
   const resp = await http.get("/api/sessions/public");
+  return resp.data;
+}
+
+export async function discoverSessions(params: {
+  q?: string;
+  onlyPublic?: boolean;
+  unvisited?: boolean;
+}): Promise<{ data: { mine: DiscoverSessionDto[]; others: DiscoverSessionDto[] } }> {
+  const resp = await http.get("/api/sessions/discover", {
+    params: {
+      q: params.q,
+      onlyPublic: params.onlyPublic ? "1" : undefined,
+      unvisited: params.unvisited ? "1" : undefined,
+    },
+  });
   return resp.data;
 }
 

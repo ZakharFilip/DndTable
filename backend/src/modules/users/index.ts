@@ -1,4 +1,6 @@
 // Users & friends module stub
-export {};
+export { UserModel } from "./user.model.js";
+export { UserSearchService } from "./UserSearchService.js";
+export { FriendCodeGenerator } from "./FriendCodeGenerator.js";
 
 

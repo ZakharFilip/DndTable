@@ -2,18 +2,26 @@ import { useCallback, useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
 import type { TabletopBaseObject } from "@dnd-table/shared";
 import {
+  resolvePasteShapeVariant,
+  resolveShapeImageImport,
+} from "../../../tabletop/appearance/shapeImageImport";
+import type { ShapeVariantId } from "../../../tabletop/shapes";
+import {
   nextObjectKey,
-  toTabletopImage,
   toTabletopText,
   type TableObjectState,
+  type Tool,
 } from "../../../tabletop/model";
+import { isTextInput } from "../../../utils/isTextInput";
 import { CLIP_PREFIX, fitImageDimensions, loadImageNaturalSize } from "../helpers";
 
 interface UseCopyPasteParams {
   id: string | undefined;
   editingKey: string | null;
+  currentTool: Tool;
   primaryKey: string | null;
   selectedKeys: string[];
+  activeShapeVariant: ShapeVariantId;
   objectsRef: MutableRefObject<TableObjectState[]>;
   stagePosRef: MutableRefObject<{ x: number; y: number }>;
   scaleRef: MutableRefObject<number>;
@@ -21,6 +29,7 @@ interface UseCopyPasteParams {
   setSelectedKey: (k: string | null) => void;
   setSelectedKeys: (ks: string[]) => void;
   createObject: (key: string, obj: TabletopBaseObject) => void;
+  commitObjectWith: (key: string, obj: TabletopBaseObject) => void;
 }
 
 /**
@@ -34,8 +43,10 @@ export function useCopyPaste(params: UseCopyPasteParams) {
   const {
     id,
     editingKey,
+    currentTool,
     primaryKey,
     selectedKeys,
+    activeShapeVariant,
     objectsRef,
     stagePosRef,
     scaleRef,
@@ -43,6 +54,7 @@ export function useCopyPaste(params: UseCopyPasteParams) {
     setSelectedKey,
     setSelectedKeys,
     createObject,
+    commitObjectWith,
   } = params;
 
   const memoryClipboardRef = useRef<string | null>(null);
@@ -57,15 +69,44 @@ export function useCopyPaste(params: UseCopyPasteParams) {
     };
   }, [stagePosRef, scaleRef, stageSizeRef]);
 
-  const createImageAtCenter = useCallback(
+  const importImageSprite = useCallback(
     async (sprite: string) => {
-      const { x, y } = screenCenterWorld();
       const natural = await loadImageNaturalSize(sprite);
       const { width, height } = fitImageDimensions(natural.width, natural.height);
-      const key = nextObjectKey("image");
-      createObject(key, toTabletopImage({ key, x, y, width, height, sprite }));
+      const { x, y } = screenCenterWorld();
+      const result = resolveShapeImageImport({
+        sprite,
+        width,
+        height,
+        centerX: x,
+        centerY: y,
+        pasteShapeVariant: resolvePasteShapeVariant(currentTool, activeShapeVariant),
+        selectedKeys,
+        objects: objectsRef.current,
+        nextKey: () => nextObjectKey("shape"),
+      });
+
+      if (result.action === "attach") {
+        commitObjectWith(result.key, result.obj);
+        setSelectedKey(result.key);
+        setSelectedKeys([result.key]);
+      } else {
+        createObject(result.key, result.obj);
+        setSelectedKey(result.key);
+        setSelectedKeys([result.key]);
+      }
     },
-    [createObject, screenCenterWorld]
+    [
+      screenCenterWorld,
+      currentTool,
+      activeShapeVariant,
+      selectedKeys,
+      objectsRef,
+      commitObjectWith,
+      createObject,
+      setSelectedKey,
+      setSelectedKeys,
+    ]
   );
 
   const createTextAtCenter = useCallback(
@@ -186,6 +227,9 @@ export function useCopyPaste(params: UseCopyPasteParams) {
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       if (!id) return;
+      if (editingKey) return;
+      if (isTextInput(e.target)) return;
+
       const plain = e.clipboardData?.getData("text/plain") ?? "";
       if (plain.startsWith(CLIP_PREFIX)) {
         const ok = pasteFromText(plain);
@@ -194,20 +238,20 @@ export function useCopyPaste(params: UseCopyPasteParams) {
       }
 
       const items = e.clipboardData?.items;
-      if (!items) return;
-
-      for (const item of items) {
-        if (item.type.startsWith("image/")) {
-          const file = item.getAsFile();
-          if (!file) continue;
-          const reader = new FileReader();
-          reader.onload = () => {
-            const sprite = typeof reader.result === "string" ? reader.result : "";
-            if (sprite) void createImageAtCenter(sprite);
-          };
-          reader.readAsDataURL(file);
-          e.preventDefault();
-          return;
+      if (items) {
+        for (const item of items) {
+          if (item.type.startsWith("image/")) {
+            const file = item.getAsFile();
+            if (!file) continue;
+            const reader = new FileReader();
+            reader.onload = () => {
+              const sprite = typeof reader.result === "string" ? reader.result : "";
+              if (sprite) void importImageSprite(sprite);
+            };
+            reader.readAsDataURL(file);
+            e.preventDefault();
+            return;
+          }
         }
       }
 
@@ -220,12 +264,12 @@ export function useCopyPaste(params: UseCopyPasteParams) {
 
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
-  }, [id, pasteFromText, createImageAtCenter, createTextAtCenter]);
+  }, [id, editingKey, pasteFromText, importImageSprite, createTextAtCenter]);
 
   return {
     copySelection,
     pasteSelection,
     pasteFromText,
-    createImageAtCenter,
+    importImageSprite,
   };
 }

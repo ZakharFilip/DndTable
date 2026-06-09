@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import { UserModel } from "../users/user.model";
+import { FriendCodeGenerator } from "../users/FriendCodeGenerator.js";
 import { RegisterDto, LoginDto } from "./auth.dto";
 import { HttpError } from "../../shared/HttpError";
 
@@ -42,12 +43,14 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
+    const friendCode = await FriendCodeGenerator.generateUnique();
 
     const user = await UserModel.create({
       email,
       username,
       passwordHash,
       avatar: "default-avatar.png",
+      friendCode,
     });
 
     return {
@@ -58,6 +61,7 @@ export class AuthService {
           email: user.email,
           username: user.username,
           avatar: user.avatar,
+          friendCode: user.friendCode,
         },
       },
       message: "Регистрация прошла успешно",
