@@ -55,10 +55,13 @@ export class AccessSnapshotService {
     }
 
     const users = await UserModel.find({ _id: { $in: [...allUserIds] } })
-      .select({ username: 1, email: 1 })
+      .select({ username: 1, email: 1, avatar: 1 })
       .lean();
     const userById = new Map(
-      users.map((u) => [String(u._id), { username: u.username, email: u.email }])
+      users.map((u) => [
+        String(u._id),
+        { username: u.username, email: u.email, avatar: u.avatar ?? undefined },
+      ])
     );
 
     const teamDtos: TeamDto[] = teams.map((t) => ({
@@ -85,6 +88,7 @@ export class AccessSnapshotService {
             userId,
             username: profile?.username,
             email: profile?.email,
+            avatar: profile?.avatar,
             teamIds: teamIdsByUser.get(userId) ?? [],
             joinedAt: joinedAtByUser.get(userId),
           };

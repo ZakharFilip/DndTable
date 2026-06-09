@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login } from "../api/auth";
 import { useSession } from "../state/session";
-import "../styles/Login.css";
+import { AuthLayout } from "../components/layout/AuthLayout";
+import { Alert, Button, Input, Label } from "../components/ui";
 
-export const LoginPage: React.FC = () => {
+export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -15,48 +16,40 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { setUser } = useSession();
 
-  useEffect(() => {
-    if (!email) {
+  const validate = () => {
+    let ok = true;
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
       setEmailError("Введите корректный адрес электронной почты");
-    } else if (!/^\S+@\S+\.\S+$/.test(email)) {
-      setEmailError("Введите корректный адрес электронной почты");
-    } else {
-      setEmailError(null);
-    }
-
-    if (!password) {
+      ok = false;
+    } else setEmailError(null);
+    if (!password || password.length < 8) {
       setPasswordError("Пароль должен содержать не менее 8 символов");
-    } else if (password.length < 8) {
-      setPasswordError("Пароль должен содержать не менее 8 символов");
-    } else {
-      setPasswordError(null);
-    }
-  }, [email, password]);
-
-  const canSubmit = !emailError && !passwordError && email && password;
+      ok = false;
+    } else setPasswordError(null);
+    return ok;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!validate()) return;
 
     setSubmitError(null);
     setLoading(true);
 
     try {
       const resp = await login({ email, password });
-
       if (resp?.success) {
-        const { user } = resp.data;
-        setUser(user);
+        setUser(resp.data.user);
         navigate("/dashboard", { replace: true });
       } else {
         setSubmitError("Неверный email или пароль");
       }
-    } catch (err: any) {
-      if (err.response?.status === 401) {
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { message?: string } } };
+      if (e.response?.status === 401) {
         setSubmitError("Неверный email или пароль");
-      } else if (err.response?.data?.message) {
-        setSubmitError(err.response.data.message);
+      } else if (e.response?.data?.message) {
+        setSubmitError(e.response.data.message);
       } else {
         setSubmitError("Произошла ошибка. Попробуйте позже.");
       }
@@ -66,65 +59,52 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="login-container">
-      {/* Звездное небо */}
-      <div className="login-stars"></div>
-      
-      {/* Туманности */}
-      <div className="login-nebula"></div>
-      
-      {/* Декоративные холмы */}
-      <div className="login-hills"></div>
-
-      {/* Форма входа */}
-      <form onSubmit={handleSubmit} className="login-form">
-        <h1 className="login-title">
-          Вход в аккаунт
-        </h1>
-
-        <div className="login-field">
-          <label>Электронная почта</label>
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            type="email"
-            placeholder="email@example.com"
-            required
-          />
-          {emailError && <div className="login-error">{emailError}</div>}
-        </div>
-
-        <div className="login-field">
-          <label>Пароль</label>
-          <input
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            type="password"
-            placeholder="••••••••"
-            required
-          />
-          {passwordError && <div className="login-error">{passwordError}</div>}
-        </div>
-
-        <button 
-          type="submit" 
-          disabled={!canSubmit || loading} 
-          className="login-submit-btn"
-        >
-          {loading ? "Входим..." : "Войти"}
-        </button>
-
-        {submitError && <div className="login-submit-error">{submitError}</div>}
-
-        <div className="login-switch">
-          Нет аккаунта?
-          <Link to="/register" className="login-link">
+    <AuthLayout
+      title="Вход в аккаунт"
+      subtitle="Войдите, чтобы продолжить"
+      footer={
+        <>
+          Нет аккаунта?{" "}
+          <Link to="/register" className="text-primary hover:text-primary-hover font-medium">
             Зарегистрироваться
           </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="email" required>
+            Электронная почта
+          </Label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="email@example.com"
+            error={emailError}
+            autoComplete="email"
+          />
         </div>
+        <div>
+          <Label htmlFor="password" required>
+            Пароль
+          </Label>
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            error={passwordError}
+            autoComplete="current-password"
+          />
+        </div>
+        {submitError && <Alert variant="error">{submitError}</Alert>}
+        <Button type="submit" className="w-full" loading={loading} disabled={loading}>
+          Войти
+        </Button>
       </form>
-    </div>
+    </AuthLayout>
   );
-};
-
-export default LoginPage;
+}

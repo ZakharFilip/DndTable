@@ -13,7 +13,7 @@ export function Avatar({ filename, size = 32, className = "" }: AvatarProps) {
       alt=""
       width={size}
       height={size}
-      className={`rounded-full bg-gray-200 object-cover ${className}`}
+      className={`rounded-full bg-border object-cover ${className}`}
       onError={(e) => {
         (e.target as HTMLImageElement).src = avatarUrl();
       }}

@@ -2,22 +2,25 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSession } from "../state/session";
 import { logout } from "../api/auth";
-import "../styles/Dashboard.css";
+import { PageLayout } from "../components/layout/PageLayout";
+import { Button, Card, Modal } from "../components/ui";
+
+const HUB_ITEMS = [
+  { label: "Присоединиться", description: "Найти и войти в сессию", path: "/sessions/join" },
+  { label: "Мои сессии", description: "Созданные и доступные столы", path: "/sessions" },
+  { label: "Профиль", description: "Аккаунт и друзья", path: "/profile" },
+] as const;
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { clearSession } = useSession();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  const handleLogout = () => {
-    setShowLogoutConfirm(true);
-  };
-
   const confirmLogout = async () => {
     try {
       await logout();
     } catch {
-      // If request fails, still clear local state. Cookie will expire naturally or be cleared on next server call.
+      /* clear locally anyway */
     } finally {
       clearSession();
       setShowLogoutConfirm(false);
@@ -25,103 +28,56 @@ export default function Dashboard() {
     }
   };
 
-  const cancelLogout = () => {
-    setShowLogoutConfirm(false);
-  };
-
   return (
-    <div className="dashboard-container">
-      {/* Звездное небо */}
-      <div className="dashboard-stars"></div>
-      
-      {/* Туманности */}
-      <div className="dashboard-nebula"></div>
-      
-      {/* Декоративные холмы */}
-      <div className="dashboard-hills"></div>
-
-      {/* Основной контент */}
-      <div className="dashboard-content">
-        <div className="dashboard-menu">
-          <h1 className="dashboard-title">
-            Главное меню
-          </h1>
-
-          <div className="dashboard-buttons">
-            <button
-              type="button"
-              onClick={() => navigate("/sessions/join")}
-              className="dashboard-btn"
+    <PageLayout
+      title="Главное меню"
+      description="Выберите раздел для продолжения"
+      actions={
+        <Button variant="ghost" size="sm" onClick={() => setShowLogoutConfirm(true)}>
+          Выйти
+        </Button>
+      }
+      maxWidth="md"
+    >
+      <div className="flex flex-col gap-5">
+        {HUB_ITEMS.map((item) => (
+          <button
+            key={item.path}
+            type="button"
+            onClick={() => navigate(item.path)}
+            className="text-left w-full"
+          >
+            <Card
+              hover
+              padding="lg"
+              className="min-h-[88px] transition-transform duration-150 hover:-translate-y-0.5"
             >
-              Присоединиться
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate("/sessions")}
-              className="dashboard-btn"
-            >
-              Создать сессию
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate("/records")}
-              className="dashboard-btn"
-            >
-              Записи игр
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate("/profile")}
-              className="dashboard-btn"
-            >
-              Профиль
-            </button>
-
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="dashboard-btn logout"
-            >
-              Выйти
-            </button>
-          </div>
-        </div>
+              <h2 className="text-2xl font-semibold text-text mb-2">{item.label}</h2>
+              <p className="text-base text-text-secondary">{item.description}</p>
+            </Card>
+          </button>
+        ))}
       </div>
 
-      {/* Модальное окно подтверждения выхода */}
-      {showLogoutConfirm && (
-        <div className="dashboard-modal">
-          <div className="modal-content">
-            <h2 className="modal-title">
-              Выйти из аккаунта?
-            </h2>
-            <p className="modal-text">
-              Вы уверены, что хотите выйти из аккаунта? Вас перенесёт на
-              страницу авторизации.
-            </p>
-
-            <div className="modal-buttons">
-              <button
-                type="button"
-                onClick={cancelLogout}
-                className="modal-btn cancel"
-              >
-                Отмена
-              </button>
-              <button
-                type="button"
-                onClick={confirmLogout}
-                className="modal-btn confirm"
-              >
-                Выйти
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <Modal
+        open={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        title="Выйти из аккаунта?"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowLogoutConfirm(false)}>
+              Отмена
+            </Button>
+            <Button variant="danger" onClick={() => void confirmLogout()}>
+              Выйти
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-text-secondary">
+          Вы будете перенаправлены на страницу входа.
+        </p>
+      </Modal>
+    </PageLayout>
   );
 }

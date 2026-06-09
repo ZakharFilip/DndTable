@@ -80,7 +80,7 @@ export function TextEditOverlay({
         }
       }}
       onBlur={() => onCommit(editingText)}
-      className="fixed z-50 p-2 text-sm bg-white/95 border border-indigo-300 rounded shadow"
+      className="fixed z-50 p-2 text-sm bg-surface/95 border border-primary rounded shadow-card"
       style={{ left, top, width, height, resize: "none" }}
     />,
     document.body

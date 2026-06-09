@@ -53,10 +53,10 @@ export function LayersSection({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <div className="text-xs font-medium text-gray-500">Слои</div>
+        <div className="text-xs font-medium text-text-secondary">Слои</div>
         <button
           type="button"
-          className="text-xs text-indigo-600 hover:underline"
+          className="text-xs text-primary hover:underline"
           onClick={onAddLayer}
         >
           + Add
@@ -84,11 +84,11 @@ export function LayersSection({
             className={[
               "flex items-center gap-1 rounded transition-colors",
               dragId === l.id ? "opacity-40" : "",
-              dropTargetId === l.id && dragId !== l.id ? "ring-2 ring-indigo-300 bg-indigo-50/50" : "",
+              dropTargetId === l.id && dragId !== l.id ? "ring-2 ring-primary/30 bg-primary-muted/50" : "",
             ].join(" ")}
           >
             <span
-              className="cursor-grab text-gray-400 px-0.5 select-none"
+              className="cursor-grab text-text-muted px-0.5 select-none"
               title="Перетащить"
             >
               ⋮⋮
@@ -99,8 +99,8 @@ export function LayersSection({
               className={[
                 "flex-1 px-2 py-1.5 rounded text-xs border text-left truncate",
                 activeLayerId === l.id
-                  ? "bg-indigo-600 text-white border-indigo-600"
-                  : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50",
+                  ? "bg-primary text-white border-primary"
+                  : "bg-surface text-text border-border hover:bg-background",
               ].join(" ")}
               title={l.name}
             >
@@ -108,7 +108,7 @@ export function LayersSection({
             </button>
             <button
               type="button"
-              className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
+              className="px-2 py-1 text-xs border rounded hover:bg-background"
               title={l.visible ? "Скрыть слой" : "Показать слой"}
               onClick={() => onToggleLayerVisible(l)}
             >
@@ -116,7 +116,7 @@ export function LayersSection({
             </button>
             <button
               type="button"
-              className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
+              className="px-2 py-1 text-xs border rounded hover:bg-background"
               title={l.locked ? "Разблокировать" : "Заблокировать"}
               onClick={() => onToggleLayerLocked(l)}
             >

@@ -112,7 +112,7 @@ export function InspectorPanel({
             <path d="M9 18l6-6-6-6" />
           </svg>
         </button>
-        <div className="w-full text-center text-xs font-medium text-gray-500">
+        <div className="w-full text-center text-xs font-medium text-text-secondary">
           {showLayers ? "Слои" : "Свойства"}
         </div>
       </div>
@@ -136,14 +136,14 @@ export function InspectorPanel({
         return (
         <div className="space-y-3">
           {selectedKeys.length > 1 && (
-            <div className="text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-1">
+            <div className="text-xs text-primary-hover bg-primary-muted border border-primary/20 rounded px-2 py-1">
               Выбрано объектов: {selectedKeys.length}
             </div>
           )}
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-text-secondary">
             key: <span className="font-mono">{selected.key}</span> · v{selected.version}
             {selectedKeys.length > 1 && (
-              <span className="block text-gray-400 mt-0.5">
+              <span className="block text-text-muted mt-0.5">
                 Основной объект для координат и цвета
               </span>
             )}
@@ -153,7 +153,7 @@ export function InspectorPanel({
             <button
               type="button"
               disabled={selectedKeys.length < 2}
-              className="px-3 py-1.5 rounded border border-gray-200 text-sm hover:bg-gray-50 disabled:opacity-50"
+              className="px-3 py-1.5 rounded border border-border text-sm hover:bg-background disabled:opacity-50"
               onClick={onGroup}
             >
               Group
@@ -161,7 +161,7 @@ export function InspectorPanel({
             <button
               type="button"
               disabled={!selected.obj.groupId}
-              className="px-3 py-1.5 rounded border border-gray-200 text-sm hover:bg-gray-50 disabled:opacity-50"
+              className="px-3 py-1.5 rounded border border-border text-sm hover:bg-background disabled:opacity-50"
               onClick={onUngroup}
             >
               Ungroup
@@ -169,10 +169,10 @@ export function InspectorPanel({
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <label className="text-xs text-gray-600">
+            <label className="text-xs text-text-secondary">
               X
               <input
-                className="mt-1 w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                className="mt-1 w-full px-2 py-1 border border-border rounded text-sm"
                 type="number"
                 value={Number.isFinite(selected.obj.transform.position.x) ? selected.obj.transform.position.x : 0}
                 disabled={locked}
@@ -192,10 +192,10 @@ export function InspectorPanel({
                 onBlur={() => onCommit(selected.key)}
               />
             </label>
-            <label className="text-xs text-gray-600">
+            <label className="text-xs text-text-secondary">
               Y
               <input
-                className="mt-1 w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                className="mt-1 w-full px-2 py-1 border border-border rounded text-sm"
                 type="number"
                 value={Number.isFinite(selected.obj.transform.position.y) ? selected.obj.transform.position.y : 0}
                 disabled={locked}
@@ -217,10 +217,10 @@ export function InspectorPanel({
             </label>
           </div>
 
-          <label className="text-xs text-gray-600 block">
+          <label className="text-xs text-text-secondary block">
             Rotation (deg)
             <input
-              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded text-sm"
+              className="mt-1 w-full px-2 py-1 border border-border rounded text-sm"
               type="number"
               value={Number.isFinite(selected.obj.transform.rotation ?? 0) ? selected.obj.transform.rotation ?? 0 : 0}
               disabled={locked}
@@ -237,10 +237,10 @@ export function InspectorPanel({
 
           {getMeta(selected.obj).kind !== "chip" && (
             <div className="grid grid-cols-2 gap-2">
-              <label className="text-xs text-gray-600">
+              <label className="text-xs text-text-secondary">
                 Width
                 <input
-                  className="mt-1 w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                  className="mt-1 w-full px-2 py-1 border border-border rounded text-sm"
                   type="number"
                   min={1}
                   value={Number(getMeta(selected.obj).width ?? 120)}
@@ -255,10 +255,10 @@ export function InspectorPanel({
                   onBlur={() => onCommit(selected.key)}
                 />
               </label>
-              <label className="text-xs text-gray-600">
+              <label className="text-xs text-text-secondary">
                 Height
                 <input
-                  className="mt-1 w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                  className="mt-1 w-full px-2 py-1 border border-border rounded text-sm"
                   type="number"
                   min={1}
                   value={Number(getMeta(selected.obj).height ?? 80)}
@@ -277,17 +277,17 @@ export function InspectorPanel({
           )}
 
           {isShape && (
-            <div className="space-y-2 border border-gray-100 rounded p-2 bg-gray-50">
-              <div className="text-xs font-medium text-gray-600">Спрайт</div>
+            <div className="space-y-2 border border-border rounded p-2 bg-background">
+              <div className="text-xs font-medium text-text-secondary">Спрайт</div>
               {spriteAttached && (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-text-secondary">
                   Заливка прозрачна — выберите цвет, чтобы подсветить объект поверх спрайта.
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
                 <label
                   className={[
-                    "px-2 py-1 text-xs border border-gray-200 rounded bg-white hover:bg-gray-50 cursor-pointer",
+                    "px-2 py-1 text-xs border border-border rounded bg-surface hover:bg-background cursor-pointer",
                     locked ? "opacity-50 pointer-events-none" : "",
                   ].join(" ")}
                 >
@@ -317,7 +317,7 @@ export function InspectorPanel({
                   <button
                     type="button"
                     disabled={locked}
-                    className="px-2 py-1 text-xs border border-gray-200 rounded bg-white hover:bg-gray-50 disabled:opacity-50"
+                    className="px-2 py-1 text-xs border border-border rounded bg-surface hover:bg-background disabled:opacity-50"
                     onClick={() => {
                       const latest = getObjectByKey(selected.key) ?? sel.obj;
                       onCommitWith(selected.key, detachSprite(latest));
@@ -330,7 +330,7 @@ export function InspectorPanel({
                   <button
                     type="button"
                     disabled={locked || fillTransparent}
-                    className="px-2 py-1 text-xs border border-gray-200 rounded bg-white hover:bg-gray-50 disabled:opacity-50"
+                    className="px-2 py-1 text-xs border border-border rounded bg-surface hover:bg-background disabled:opacity-50"
                     onClick={() => {
                       onUpdateLocal(selected.key, (o) => ({
                         ...o,
@@ -350,10 +350,10 @@ export function InspectorPanel({
           )}
 
           <div className="grid grid-cols-2 gap-2">
-            <label className="text-xs text-gray-600">
+            <label className="text-xs text-text-secondary">
               Fill{fillTransparent ? " (прозрачный)" : ""}
               <input
-                className="mt-1 w-full h-9 border border-gray-300 rounded"
+                className="mt-1 w-full h-9 border border-border rounded"
                 type="color"
                 value={fillColorForPicker(selected.obj.appearance?.fillColor)}
                 disabled={locked}
@@ -370,10 +370,10 @@ export function InspectorPanel({
                 onBlur={() => onCommit(selected.key)}
               />
             </label>
-            <label className="text-xs text-gray-600">
+            <label className="text-xs text-text-secondary">
               Stroke
               <input
-                className="mt-1 w-full h-9 border border-gray-300 rounded"
+                className="mt-1 w-full h-9 border border-border rounded"
                 type="color"
                 value={
                   typeof selected.obj.appearance?.strokeColor === "string" &&

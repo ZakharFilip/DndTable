@@ -29,6 +29,16 @@ router.get("/unread-count", async (req: Request, res: Response, next: NextFuncti
   }
 });
 
+router.post("/mark-all-read", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as Request & { userId: string }).userId;
+    const count = await InboxService.markAllRead(userId);
+    return res.json({ success: true, data: { count } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post(
   "/:id/act",
   requireValidObjectId("id"),

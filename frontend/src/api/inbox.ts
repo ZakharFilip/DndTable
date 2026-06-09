@@ -11,6 +11,11 @@ export async function getInboxUnreadCount(): Promise<{ data: { count: number } }
   return resp.data;
 }
 
+export async function markAllInboxRead(): Promise<{ data: { count: number } }> {
+  const resp = await http.post("/api/inbox/mark-all-read");
+  return resp.data;
+}
+
 export async function actOnInboxMessage(messageId: string, action: InboxAction) {
   const resp = await http.post(`/api/inbox/${messageId}/act`, { action });
   return resp.data;

@@ -21,11 +21,11 @@ export function TableContextMenu({
       <ContextMenu.Trigger asChild>{trigger}</ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content
-          className="z-[70] min-w-[180px] rounded-md border border-gray-200 bg-white shadow-lg p-1"
+          className="z-[70] min-w-[180px] rounded-md border border-border bg-surface shadow-lg p-1"
           alignOffset={4}
         >
           <ContextMenu.Item
-            className="select-none rounded px-3 py-2 text-sm outline-none hover:bg-gray-50 focus:bg-gray-50"
+            className="select-none rounded px-3 py-2 text-sm outline-none hover:bg-background focus:bg-background"
             onSelect={(e) => {
               e.preventDefault();
               onCopy();
@@ -34,7 +34,7 @@ export function TableContextMenu({
             Копировать
           </ContextMenu.Item>
           <ContextMenu.Item
-            className="select-none rounded px-3 py-2 text-sm outline-none hover:bg-gray-50 focus:bg-gray-50"
+            className="select-none rounded px-3 py-2 text-sm outline-none hover:bg-background focus:bg-background"
             onSelect={(e) => {
               e.preventDefault();
               onPaste();
@@ -42,9 +42,9 @@ export function TableContextMenu({
           >
             Вставить
           </ContextMenu.Item>
-          <ContextMenu.Separator className="my-1 h-px bg-gray-200" />
+          <ContextMenu.Separator className="my-1 h-px bg-border" />
           <ContextMenu.Item
-            className="select-none rounded px-3 py-2 text-sm outline-none hover:bg-gray-50 focus:bg-gray-50"
+            className="select-none rounded px-3 py-2 text-sm outline-none hover:bg-background focus:bg-background"
             onSelect={(e) => {
               e.preventDefault();
               onDelete();

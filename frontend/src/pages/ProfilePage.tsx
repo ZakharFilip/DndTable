@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "../state/session";
-import { getUserMe } from "../api/users";
-import { searchUsers } from "../api/users";
+import { getUserMe, searchUsers, uploadAvatar } from "../api/users";
 import {
   getFriends,
   removeFriend,
@@ -10,8 +9,45 @@ import {
 } from "../api/friends";
 import type { FriendDto, UserSearchResult } from "@dnd-table/shared";
 import { Avatar } from "../components/Avatar";
+import { PageLayout } from "../components/layout/PageLayout";
+import {
+  Alert,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  Label,
+  SegmentedControl,
+  Spinner,
+} from "../components/ui";
 
 type Tab = "profile" | "search" | "friends";
+
+const TAB_OPTIONS = [
+  { value: "profile" as const, label: "Профиль" },
+  { value: "search" as const, label: "Поиск" },
+  { value: "friends" as const, label: "Друзья" },
+];
+
+function ListItem({
+  avatar,
+  name,
+  action,
+}: {
+  avatar?: string;
+  name: string;
+  action: React.ReactNode;
+}) {
+  return (
+    <Card padding="sm" className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        <Avatar filename={avatar} />
+        <span className="text-sm font-medium text-text truncate">{name}</span>
+      </div>
+      {action}
+    </Card>
+  );
+}
 
 export default function ProfilePage() {
   const { user, refreshSession } = useSession();
@@ -22,7 +58,11 @@ export default function ProfilePage() {
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [friends, setFriends] = useState<FriendDto[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageVariant, setMessageVariant] = useState<"success" | "error">("success");
   const [busy, setBusy] = useState(false);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void getUserMe()
@@ -34,9 +74,11 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (tab === "friends") {
+      setFriendsLoading(true);
       void getFriends()
         .then((r) => setFriends(r.data.friends))
-        .catch(() => setFriends([]));
+        .catch(() => setFriends([]))
+        .finally(() => setFriendsLoading(false));
     }
   }, [tab]);
 
@@ -53,15 +95,20 @@ export default function ProfilePage() {
     return () => window.clearTimeout(t);
   }, [tab, searchQ]);
 
+  const showMessage = (text: string, variant: "success" | "error" = "success") => {
+    setMessage(text);
+    setMessageVariant(variant);
+  };
+
   const addByCode = async () => {
     setBusy(true);
     setMessage(null);
     try {
       await sendFriendRequestByCode(codeInput.trim());
-      setMessage("Заявка отправлена");
+      showMessage("Заявка отправлена");
       setCodeInput("");
     } catch {
-      setMessage("Не удалось отправить заявку");
+      showMessage("Не удалось отправить заявку", "error");
     } finally {
       setBusy(false);
     }
@@ -72,11 +119,28 @@ export default function ProfilePage() {
     setMessage(null);
     try {
       await sendFriendRequest(userId);
-      setMessage("Заявка отправлена");
+      showMessage("Заявка отправлена");
     } catch {
-      setMessage("Не удалось отправить заявку");
+      showMessage("Не удалось отправить заявку", "error");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    setMessage(null);
+    try {
+      await uploadAvatar(file);
+      await refreshSession();
+      showMessage("Аватар обновлён");
+    } catch {
+      showMessage("Не удалось загрузить аватар", "error");
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
     }
   };
 
@@ -87,107 +151,114 @@ export default function ProfilePage() {
       await removeFriend(userId);
       setFriends((prev) => prev.filter((f) => f.userId !== userId));
     } catch {
-      setMessage("Не удалось удалить друга");
+      showMessage("Не удалось удалить друга", "error");
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <div className="flex gap-2 border-b border-gray-200 mb-4 text-sm">
-        {(["profile", "search", "friends"] as Tab[]).map((t) => (
-          <button
-            key={t}
-            type="button"
-            className={`px-3 py-2 capitalize ${
-              tab === t ? "border-b-2 border-indigo-600 text-indigo-700" : "text-gray-600"
-            }`}
-            onClick={() => setTab(t)}
-          >
-            {t === "profile" ? "Профиль" : t === "search" ? "Поиск" : "Друзья"}
-          </button>
-        ))}
+    <PageLayout title="Профиль" description="Аккаунт, друзья и поиск игроков" maxWidth="md">
+      <div className="mb-4">
+        <SegmentedControl value={tab} options={TAB_OPTIONS} onChange={setTab} />
       </div>
 
-      {message && <p className="text-sm text-green-700 mb-3">{message}</p>}
+      {message && (
+        <Alert variant={messageVariant} className="mb-4">
+          {message}
+        </Alert>
+      )}
 
       {tab === "profile" && (
-        <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+        <Card className="space-y-4">
           {user ? (
             <>
-              <div>
-                <div className="text-sm text-gray-500">Никнейм</div>
-                <div className="text-lg font-medium">{user.username}</div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-500">Почта</div>
-                <div>{user.email}</div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-500 mb-1">Код дружбы</div>
-                <div className="font-mono text-xl tracking-widest">{friendCode || "—"}</div>
-              </div>
-              <div className="border-t pt-4">
-                <div className="text-sm text-gray-500 mb-2">Добавить по коду</div>
-                <div className="flex gap-2">
+              <div className="flex items-center gap-4">
+                <Avatar filename={user.avatar} size={64} />
+                <div className="space-y-2">
+                  <div>
+                    <div className="text-lg font-semibold text-text">{user.username}</div>
+                    <div className="text-sm text-text-secondary">{user.email}</div>
+                  </div>
                   <input
-                    className="border border-gray-300 rounded px-2 py-1 font-mono flex-1"
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => void handleAvatarChange(e)}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    loading={avatarUploading}
+                    onClick={() => avatarInputRef.current?.click()}
+                  >
+                    Изменить аватар
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <Label>Код дружбы</Label>
+                <div className="mt-1 font-mono text-2xl tracking-widest text-text bg-background border border-border rounded-lg px-4 py-3">
+                  {friendCode || "—"}
+                </div>
+              </div>
+              <div className="border-t border-border pt-4">
+                <Label htmlFor="friend-code">Добавить по коду</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    id="friend-code"
+                    className="font-mono"
                     placeholder="000000"
                     maxLength={6}
                     value={codeInput}
-                    onChange={(e) => setCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    onChange={(e) =>
+                      setCodeInput(e.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
                   />
-                  <button
-                    type="button"
+                  <Button
                     disabled={busy || codeInput.length !== 6}
-                    className="px-3 py-1 bg-indigo-600 text-white rounded text-sm disabled:opacity-50"
+                    loading={busy}
                     onClick={() => void addByCode()}
                   >
                     Добавить
-                  </button>
+                  </Button>
                 </div>
               </div>
-              <button
-                type="button"
-                className="text-sm text-indigo-600"
-                onClick={() => void refreshSession()}
-              >
+              <Button variant="ghost" size="sm" onClick={() => void refreshSession()}>
                 Обновить данные
-              </button>
+              </Button>
             </>
           ) : (
-            <p className="text-gray-600">Войдите в аккаунт</p>
+            <EmptyState title="Войдите в аккаунт" />
           )}
-        </div>
+        </Card>
       )}
 
       {tab === "search" && (
         <div className="space-y-3">
-          <input
-            className="w-full border border-gray-300 rounded px-3 py-2"
-            placeholder="Поиск по нику"
+          <Input
+            placeholder="Поиск по нику (мин. 2 символа)"
             value={searchQ}
             onChange={(e) => setSearchQ(e.target.value)}
           />
+          {searchQ.trim().length >= 2 && searchResults.length === 0 && (
+            <Card>
+              <EmptyState title="Никого не найдено" />
+            </Card>
+          )}
           <ul className="space-y-2">
             {searchResults.map((u) => (
-              <li
-                key={u.id}
-                className="flex items-center justify-between border border-gray-200 rounded p-2"
-              >
-                <div className="flex items-center gap-2">
-                  <Avatar filename={u.avatar} />
-                  <span>{u.username}</span>
-                </div>
-                <button
-                  type="button"
-                  disabled={busy}
-                  className="text-sm px-2 py-1 bg-indigo-600 text-white rounded disabled:opacity-50"
-                  onClick={() => void addFriend(u.id)}
-                >
-                  Добавить в друзья
-                </button>
+              <li key={u.id}>
+                <ListItem
+                  avatar={u.avatar}
+                  name={u.username}
+                  action={
+                    <Button size="sm" disabled={busy} onClick={() => void addFriend(u.id)}>
+                      Добавить
+                    </Button>
+                  }
+                />
               </li>
             ))}
           </ul>
@@ -195,29 +266,40 @@ export default function ProfilePage() {
       )}
 
       {tab === "friends" && (
-        <ul className="space-y-2">
-          {friends.length === 0 && <p className="text-gray-500">Пока нет друзей</p>}
-          {friends.map((f) => (
-            <li
-              key={f.userId}
-              className="flex items-center justify-between border border-gray-200 rounded p-2"
-            >
-              <div className="flex items-center gap-2">
-                <Avatar filename={f.avatar} />
-                <span>{f.username}</span>
-              </div>
-              <button
-                type="button"
-                disabled={busy}
-                className="text-sm text-red-600 hover:underline disabled:opacity-50"
-                onClick={() => void remove(f.userId)}
-              >
-                Удалить
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          {friendsLoading && (
+            <div className="flex justify-center py-8">
+              <Spinner />
+            </div>
+          )}
+          {!friendsLoading && friends.length === 0 && (
+            <Card>
+              <EmptyState title="Пока нет друзей" description="Найдите игроков через поиск или код дружбы." />
+            </Card>
+          )}
+          <ul className="space-y-2">
+            {friends.map((f) => (
+              <li key={f.userId}>
+                <ListItem
+                  avatar={f.avatar}
+                  name={f.username}
+                  action={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={busy}
+                      className="text-error hover:text-error"
+                      onClick={() => void remove(f.userId)}
+                    >
+                      Удалить
+                    </Button>
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+        </>
       )}
-    </div>
+    </PageLayout>
   );
 }

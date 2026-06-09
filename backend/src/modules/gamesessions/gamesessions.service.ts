@@ -19,6 +19,13 @@ import {
 import { PatchAuthorization } from "../access/PatchAuthorization.js";
 import { SessionParticipantModel } from "../access/models/session-participant.model.js";
 import { SessionInviteService } from "./session-invites/SessionInviteService.js";
+import { SessionInviteModel } from "./session-invites/session-invite.model.js";
+import { TeamModel } from "../access/models/team.model.js";
+import { TeamUserMemberModel } from "../access/models/team-user-member.model.js";
+import { SessionAccessConfigModel } from "../access/models/session-access-config.model.js";
+import { GlobalPermissionGrantModel } from "../access/models/global-permission-grant.model.js";
+import { ObjectPermissionGrantModel } from "../access/models/object-permission-grant.model.js";
+import { ObjectVisibilityGrantModel } from "../access/models/object-visibility-grant.model.js";
 
 export interface IncomingTableObject {
   key?: string;
@@ -170,8 +177,21 @@ export const GameSessionsService = {
       isMine,
     });
 
-    let mine = allSessions.filter((s) => mineIds.has(String(s._id))).map((s) => mapSession(s, true));
-    let others = allSessions
+    const creatorIdOf = (s: (typeof allSessions)[0]) => {
+      const cb = s.createdBy as mongoose.Types.ObjectId | { _id?: mongoose.Types.ObjectId };
+      if (cb && typeof cb === "object" && "_id" in cb && cb._id) {
+        return String(cb._id);
+      }
+      return String(cb);
+    };
+
+    let sessions = allSessions;
+    if (filters.unvisited) {
+      sessions = allSessions.filter((s) => creatorIdOf(s) !== userId);
+    }
+
+    let mine = sessions.filter((s) => mineIds.has(String(s._id))).map((s) => mapSession(s, true));
+    let others = sessions
       .filter((s) => !mineIds.has(String(s._id)))
       .map((s) => mapSession(s, false));
 
@@ -179,11 +199,32 @@ export const GameSessionsService = {
       others = others.filter((s) => !s.isPrivate);
     }
 
-    if (filters.unvisited) {
-      mine = [];
+    return { mine, others };
+  },
+
+  async deleteSession(sessionId: string, userId: string) {
+    const session = await findSessionOrThrow(sessionId);
+    if (String(session.createdBy) !== userId) {
+      throw new HttpError(403, "FORBIDDEN", "Только создатель может удалить сессию");
     }
 
-    return { mine, others };
+    const sessionOid = new mongoose.Types.ObjectId(sessionId);
+    const teams = await TeamModel.find({ gameSessionId: sessionOid }).select({ _id: 1 }).lean();
+    const teamIds = teams.map((t) => t._id);
+
+    await TeamUserMemberModel.deleteMany({ teamId: { $in: teamIds } });
+    await GlobalPermissionGrantModel.deleteMany({ gameSessionId: sessionOid });
+    await ObjectPermissionGrantModel.deleteMany({ gameSessionId: sessionOid });
+    await ObjectVisibilityGrantModel.deleteMany({ gameSessionId: sessionOid });
+    await SessionParticipantModel.deleteMany({ gameSessionId: sessionOid });
+    await SessionAccessConfigModel.deleteMany({ gameSessionId: sessionOid });
+    await TeamModel.deleteMany({ gameSessionId: sessionOid });
+    await TableObjectModel.deleteMany({ gameSessionId: sessionOid });
+    await SessionStateModel.deleteMany({ gameSessionId: sessionOid });
+    await SessionInviteModel.deleteMany({ gameSessionId: sessionOid });
+    await GameSessionModel.deleteOne({ _id: sessionOid });
+
+    return { success: true };
   },
 
   async listPublic() {

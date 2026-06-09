@@ -105,38 +105,15 @@ export function ToolsToolbar({
           </div>
 
           {variantOpen && (
-            <div
-              style={{
-                position: "absolute",
-                bottom: "100%",
-                left: 0,
-                marginBottom: 8,
-                minWidth: 140,
-                background: "rgba(255,255,255,0.98)",
-                borderRadius: 12,
-                border: "1px solid #d1d5db",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-                padding: "4px 0",
-                zIndex: 50,
-              }}
-            >
+            <div className="st-shape-dropdown dropdown-panel">
               {shapeVariants.map((variant) => (
                 <button
                   key={variant.id}
                   type="button"
-                  style={{
-                    width: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "8px 12px",
-                    fontSize: 14,
-                    textAlign: "left",
-                    border: "none",
-                    background: activeShapeVariant === variant.id ? "#eef2ff" : "transparent",
-                    color: activeShapeVariant === variant.id ? "#4338ca" : "#1f2937",
-                    cursor: "pointer",
-                  }}
+                  className={[
+                    "st-shape-dropdown-item",
+                    activeShapeVariant === variant.id ? "st-shape-dropdown-item--active" : "",
+                  ].join(" ")}
                   onClick={() => {
                     onShapeVariantChange(variant.id);
                     onToolChange("shape");

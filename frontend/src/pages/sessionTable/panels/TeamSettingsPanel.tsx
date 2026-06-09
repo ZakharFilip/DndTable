@@ -15,6 +15,7 @@ import {
   sortedParticipants,
 } from "./teamSettingsHelpers";
 import { SessionInviteModal } from "./SessionInviteModal";
+import { Avatar } from "../../../components/Avatar";
 
 const PERM_LABELS: Record<Permission, string> = {
   MoveObject: "Перемещение",
@@ -131,7 +132,7 @@ export function TeamSettingsPanel({
             {canManage && (
               <button
                 type="button"
-                className="text-sm px-2 py-1 bg-indigo-600 text-white rounded"
+                className="text-sm px-2 py-1 bg-primary text-white rounded"
                 onClick={() => setShowInvite(true)}
               >
                 Пригласить
@@ -147,15 +148,15 @@ export function TeamSettingsPanel({
           )}
 
           <section>
-            <h3 className="text-xs font-medium text-gray-500 mb-2">
+            <h3 className="text-xs font-medium text-text-secondary mb-2">
               Игроки за столом ({players.length})
             </h3>
             {players.length === 0 ? (
-              <p className="text-sm text-gray-500">Пока никто не заходил в сессию.</p>
+              <p className="text-sm text-text-secondary">Пока никто не заходил в сессию.</p>
             ) : (
-              <div className="border border-gray-200 rounded overflow-hidden">
+              <div className="border border-border rounded overflow-hidden">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-xs text-gray-500">
+                  <thead className="bg-background text-xs text-text-secondary">
                     <tr>
                       <th className="text-left font-medium px-2 py-1.5">Игрок</th>
                       <th className="text-left font-medium px-2 py-1.5">Команды</th>
@@ -165,19 +166,24 @@ export function TeamSettingsPanel({
                     {players.map((p) => (
                       <tr
                         key={p.userId}
-                        className={`border-t border-gray-100 ${
+                        className={`border-t border-border ${
                           selected && p.teamIds.includes(selected.id)
-                            ? "bg-indigo-50/60"
+                            ? "bg-primary-muted/60"
                             : ""
                         }`}
                       >
                         <td className="px-2 py-1.5 align-top">
-                          <div className="font-medium text-gray-900">{playerLabel(p)}</div>
-                          <div className="text-[10px] text-gray-400 font-mono truncate max-w-[140px]">
-                            {p.userId}
+                          <div className="flex items-center gap-2">
+                            <Avatar filename={p.avatar} size={28} />
+                            <div className="min-w-0">
+                              <div className="font-medium text-text">{playerLabel(p)}</div>
+                              <div className="text-[10px] text-text-muted font-mono truncate max-w-[140px]">
+                                {p.userId}
+                              </div>
+                            </div>
                           </div>
                         </td>
-                        <td className="px-2 py-1.5 align-top text-gray-700 text-xs">
+                        <td className="px-2 py-1.5 align-top text-text-secondary text-xs">
                           {formatPlayerTeams(access, p.teamIds)}
                         </td>
                       </tr>
@@ -189,7 +195,7 @@ export function TeamSettingsPanel({
           </section>
 
           <section>
-            <h3 className="text-xs font-medium text-gray-500 mb-2">Команды</h3>
+            <h3 className="text-xs font-medium text-text-secondary mb-2">Команды</h3>
             <ul className="space-y-1 mb-3">
               {teams.map((t) => (
                 <li key={t.id}>
@@ -197,8 +203,8 @@ export function TeamSettingsPanel({
                     type="button"
                     className={`w-full text-left px-2 py-1 rounded text-sm ${
                       selectedTeamId === t.id
-                        ? "bg-indigo-100 text-indigo-900"
-                        : "hover:bg-gray-50"
+                        ? "bg-primary-muted text-text"
+                        : "hover:bg-background"
                     }`}
                     style={{ paddingLeft: 8 + teamDepth(teams, t.id) * 16 }}
                     onClick={() => {
@@ -215,15 +221,15 @@ export function TeamSettingsPanel({
             </ul>
 
             {canManage && (
-              <div className="flex flex-col gap-2 border border-gray-200 rounded p-2">
+              <div className="flex flex-col gap-2 border border-border rounded p-2">
                 <input
-                  className="border border-gray-300 rounded px-2 py-1 text-sm"
+                  className="border border-border rounded px-2 py-1 text-sm"
                   placeholder="Новая команда"
                   value={newTeamName}
                   onChange={(e) => setNewTeamName(e.target.value)}
                 />
                 <select
-                  className="border border-gray-300 rounded px-2 py-1 text-sm"
+                  className="border border-border rounded px-2 py-1 text-sm"
                   value={parentForNew}
                   onChange={(e) => setParentForNew(e.target.value)}
                 >
@@ -239,7 +245,7 @@ export function TeamSettingsPanel({
                 <button
                   type="button"
                   disabled={busy || !newTeamName.trim()}
-                  className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded disabled:opacity-50"
+                  className="px-3 py-1.5 bg-primary text-white text-sm rounded disabled:opacity-50"
                   onClick={() =>
                     run(async () => {
                       await createTeam(sessionId, {
@@ -259,22 +265,24 @@ export function TeamSettingsPanel({
           {selected && (
             <>
               <section>
-                <h3 className="text-xs font-medium text-gray-500 mb-2">
+                <h3 className="text-xs font-medium text-text-secondary mb-2">
                   {selected.name} — участники ({playersInSelected.length})
                 </h3>
 
                 {playersInSelected.length === 0 ? (
-                  <p className="text-sm text-gray-500 mb-2">В команде пока никого нет.</p>
+                  <p className="text-sm text-text-secondary mb-2">В команде пока никого нет.</p>
                 ) : (
                   <ul className="space-y-2 mb-3">
                     {playersInSelected.map((p) => (
                       <li
                         key={p.userId}
-                        className="flex items-start justify-between gap-2 border border-gray-200 rounded px-2 py-1.5 bg-white"
+                        className="flex items-start justify-between gap-2 border border-border rounded px-2 py-1.5 bg-surface"
                       >
-                        <div className="min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Avatar filename={p.avatar} size={24} />
+                          <div className="min-w-0">
                           <div className="text-sm font-medium">{playerLabel(p)}</div>
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-text-secondary">
                             Также:{" "}
                             {p.teamIds.filter((id) => id !== selected.id).length > 0
                               ? formatPlayerTeams(
@@ -282,6 +290,7 @@ export function TeamSettingsPanel({
                                   p.teamIds.filter((id) => id !== selected.id)
                                 )
                               : "—"}
+                          </div>
                           </div>
                         </div>
                         {canManage && selected.slug !== "session-owner" && (
@@ -302,16 +311,16 @@ export function TeamSettingsPanel({
                 )}
 
                 {canManage && !selected.isSystem && (
-                  <div className="flex flex-col gap-2 border border-dashed border-gray-300 rounded p-2">
-                    <label className="text-xs text-gray-600">Добавить игрока в команду</label>
+                  <div className="flex flex-col gap-2 border border-dashed border-border rounded p-2">
+                    <label className="text-xs text-text-secondary">Добавить игрока в команду</label>
                     {playersNotInSelected.length === 0 ? (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-text-secondary">
                         Все игроки за столом уже в этой команде.
                       </p>
                     ) : (
                       <>
                         <select
-                          className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                          className="border border-border rounded px-2 py-1.5 text-sm"
                           value={addPlayerId}
                           disabled={busy}
                           onChange={(e) => setAddPlayerId(e.target.value)}
@@ -326,7 +335,7 @@ export function TeamSettingsPanel({
                         <button
                           type="button"
                           disabled={busy || !addPlayerId}
-                          className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded disabled:opacity-50"
+                          className="px-3 py-1.5 bg-primary text-white text-sm rounded disabled:opacity-50"
                           onClick={() =>
                             run(() => addTeamMember(sessionId, selected.id, addPlayerId))
                           }
@@ -340,9 +349,9 @@ export function TeamSettingsPanel({
               </section>
 
               <section>
-                <h3 className="text-xs font-medium text-gray-500 mb-2">Глобальные разрешения</h3>
+                <h3 className="text-xs font-medium text-text-secondary mb-2">Глобальные разрешения</h3>
                 {selected.slug === "session-owner" ? (
-                  <p className="text-sm text-gray-500">Session Owner — все права.</p>
+                  <p className="text-sm text-text-secondary">Session Owner — все права.</p>
                 ) : (
                   <div className="space-y-2">
                     {PERMISSIONS.map((perm) => {
@@ -352,7 +361,7 @@ export function TeamSettingsPanel({
                           <span>{PERM_LABELS[perm]}</span>
                           <select
                             disabled={!canManage || busy}
-                            className="border border-gray-300 rounded px-2 py-0.5 text-sm"
+                            className="border border-border rounded px-2 py-0.5 text-sm"
                             value={val}
                             onChange={(e) => {
                               const v = e.target.value as TriState;

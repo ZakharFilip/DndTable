@@ -46,6 +46,11 @@ export async function createSession(payload: CreateSessionPayload) {
   return resp.data;
 }
 
+export async function deleteSession(id: string) {
+  const resp = await http.delete(`/api/sessions/${id}`);
+  return resp.data;
+}
+
 export async function getMySessions(): Promise<{ data: { sessions: GameSessionDto[] } }> {
   const resp = await http.get("/api/sessions");
   return resp.data;

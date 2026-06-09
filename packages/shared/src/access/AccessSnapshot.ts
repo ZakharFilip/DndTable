@@ -21,6 +21,7 @@ export const ParticipantDtoSchema = z.object({
   userId: z.string(),
   username: z.string().optional(),
   email: z.string().optional(),
+  avatar: z.string().optional(),
   teamIds: z.array(z.string()),
   joinedAt: z.string().optional(),
 });

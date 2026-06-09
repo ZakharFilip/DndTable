@@ -4,6 +4,15 @@ import { getFriends } from "../../../api/friends";
 import { searchUsers } from "../../../api/users";
 import { sendSessionInvite } from "../../../api/sessionInvites";
 import { Avatar } from "../../../components/Avatar";
+import {
+  Alert,
+  Button,
+  EmptyState,
+  Input,
+  Modal,
+  SegmentedControl,
+  Spinner,
+} from "../../../components/ui";
 
 type Tab = "friends" | "search";
 
@@ -12,18 +21,26 @@ interface SessionInviteModalProps {
   onClose: () => void;
 }
 
+const TAB_OPTIONS = [
+  { value: "friends" as const, label: "Друзья" },
+  { value: "search" as const, label: "Поиск" },
+];
+
 export function SessionInviteModal({ sessionId, onClose }: SessionInviteModalProps) {
   const [tab, setTab] = useState<Tab>("friends");
   const [friends, setFriends] = useState<FriendDto[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(true);
   const [searchQ, setSearchQ] = useState("");
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageVariant, setMessageVariant] = useState<"success" | "error">("success");
 
   useEffect(() => {
     void getFriends()
       .then((r) => setFriends(r.data.friends))
-      .catch(() => setFriends([]));
+      .catch(() => setFriends([]))
+      .finally(() => setFriendsLoading(false));
   }, []);
 
   useEffect(() => {
@@ -45,97 +62,80 @@ export function SessionInviteModal({ sessionId, onClose }: SessionInviteModalPro
     try {
       await sendSessionInvite(sessionId, userId);
       setMessage("Приглашение отправлено");
+      setMessageVariant("success");
     } catch {
       setMessage("Не удалось отправить приглашение");
+      setMessageVariant("error");
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
-        <header className="flex items-center justify-between px-4 py-3 border-b">
-          <h3 className="font-semibold">Пригласить игрока</h3>
-          <button type="button" className="text-sm text-gray-600" onClick={onClose}>
-            Закрыть
-          </button>
-        </header>
+    <Modal open={true} title="Пригласить игрока" onClose={onClose} className="max-w-md max-h-[80vh] flex flex-col">
+      <div className="flex flex-col gap-4 -mt-2">
+        <SegmentedControl value={tab} options={TAB_OPTIONS} onChange={setTab} className="w-full" />
 
-        <div className="flex border-b text-sm">
-          <button
-            type="button"
-            className={`flex-1 py-2 ${tab === "friends" ? "border-b-2 border-indigo-600 text-indigo-700" : ""}`}
-            onClick={() => setTab("friends")}
-          >
-            Друзья
-          </button>
-          <button
-            type="button"
-            className={`flex-1 py-2 ${tab === "search" ? "border-b-2 border-indigo-600 text-indigo-700" : ""}`}
-            onClick={() => setTab("search")}
-          >
-            Поиск
-          </button>
-        </div>
+        {message && <Alert variant={messageVariant}>{message}</Alert>}
 
-        <div className="flex-1 overflow-auto p-4">
-          {message && <p className="text-sm text-green-700 mb-2">{message}</p>}
-
-          {tab === "friends" && (
-            <ul className="space-y-2">
-              {friends.length === 0 && (
-                <p className="text-sm text-gray-500">Список друзей пуст</p>
-              )}
+        {tab === "friends" && (
+          <>
+            {friendsLoading && (
+              <div className="flex justify-center py-6">
+                <Spinner />
+              </div>
+            )}
+            {!friendsLoading && friends.length === 0 && (
+              <EmptyState title="Список друзей пуст" />
+            )}
+            <ul className="space-y-2 max-h-64 overflow-auto">
               {friends.map((f) => (
-                <li key={f.userId} className="flex items-center justify-between gap-2">
+                <li
+                  key={f.userId}
+                  className="flex items-center justify-between gap-2 border border-border rounded-lg px-3 py-2"
+                >
                   <div className="flex items-center gap-2 min-w-0">
                     <Avatar filename={f.avatar} size={28} />
-                    <span className="text-sm truncate">{f.username}</span>
+                    <span className="text-sm truncate text-text">{f.username}</span>
                   </div>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className="text-xs px-2 py-1 bg-indigo-600 text-white rounded disabled:opacity-50"
-                    onClick={() => void invite(f.userId)}
-                  >
+                  <Button size="sm" disabled={busy} onClick={() => void invite(f.userId)}>
                     Пригласить
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
-          )}
+          </>
+        )}
 
-          {tab === "search" && (
-            <>
-              <input
-                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm mb-3"
-                placeholder="Никнейм (мин. 2 символа)"
-                value={searchQ}
-                onChange={(e) => setSearchQ(e.target.value)}
-              />
-              <ul className="space-y-2">
-                {searchResults.map((u) => (
-                  <li key={u.id} className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Avatar filename={u.avatar} size={28} />
-                      <span className="text-sm truncate">{u.username}</span>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      className="text-xs px-2 py-1 bg-indigo-600 text-white rounded disabled:opacity-50"
-                      onClick={() => void invite(u.id)}
-                    >
-                      Пригласить
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
+        {tab === "search" && (
+          <>
+            <Input
+              placeholder="Никнейм (мин. 2 символа)"
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
+            />
+            {searchQ.trim().length >= 2 && searchResults.length === 0 && (
+              <EmptyState title="Никого не найдено" />
+            )}
+            <ul className="space-y-2 max-h-64 overflow-auto">
+              {searchResults.map((u) => (
+                <li
+                  key={u.id}
+                  className="flex items-center justify-between gap-2 border border-border rounded-lg px-3 py-2"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Avatar filename={u.avatar} size={28} />
+                    <span className="text-sm truncate text-text">{u.username}</span>
+                  </div>
+                  <Button size="sm" disabled={busy} onClick={() => void invite(u.id)}>
+                    Пригласить
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }

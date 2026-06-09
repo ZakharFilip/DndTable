@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import type { InboxAction, InboxMessageDto } from "@dnd-table/shared";
-import { actOnInboxMessage, getInboxMessages, getInboxUnreadCount } from "../api/inbox";
+import {
+  actOnInboxMessage,
+  getInboxMessages,
+  getInboxUnreadCount,
+  markAllInboxRead,
+} from "../api/inbox";
 import { getSocket } from "../realtime/socket";
 
 export function useInbox() {
@@ -39,5 +44,13 @@ export function useInbox() {
     [refresh]
   );
 
-  return { messages, unreadCount, loading, refresh, act };
+  const markAllRead = useCallback(async () => {
+    const res = await markAllInboxRead();
+    setUnreadCount(res.data.count);
+    setMessages((prev) =>
+      prev.map((m) => (m.status === "pending" ? { ...m, status: "read" as const } : m))
+    );
+  }, []);
+
+  return { messages, unreadCount, loading, refresh, act, markAllRead };
 }

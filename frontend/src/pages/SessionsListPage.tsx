@@ -1,83 +1,153 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { getMySessions } from "../api/sessions";
+import { useCallback, useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { deleteSession, getMySessions } from "../api/sessions";
 import type { GameSessionDto } from "../api/sessions";
+import { PageLayout } from "../components/layout/PageLayout";
+import { useSession } from "../state/session";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Modal,
+  Spinner,
+} from "../components/ui";
 
 export default function SessionsListPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useSession();
   const [sessions, setSessions] = useState<GameSessionDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<GameSessionDto | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await getMySessions();
-        if (!cancelled) setSessions(res.data.sessions);
-      } catch {
-        if (!cancelled) setError("Не удалось загрузить список сессий");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getMySessions();
+      setSessions(res.data.sessions);
+    } catch {
+      setError("Не удалось загрузить список сессий");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteSession(deleteTarget.id);
+      setDeleteTarget(null);
+      await load();
+    } catch {
+      setError("Не удалось удалить сессию");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-white text-gray-900 p-6">
-      <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900">Мои сессии</h1>
-        <Link
-          to="/dashboard"
-          className="text-sm text-indigo-600 hover:text-indigo-700 underline-offset-2 hover:underline"
-        >
-          Назад в главное меню
-        </Link>
-      </header>
-
-      <div className="mb-4 flex justify-end">
-        <button
-          type="button"
-          onClick={() => navigate("/sessions/create")}
-          className="flex items-center justify-center w-10 h-10 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm"
-          title="Создать сессию"
-        >
-          +
-        </button>
-      </div>
-
-      <div className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm min-h-[200px]">
-        {loading && <p className="text-gray-600 text-sm">Загрузка…</p>}
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-        {!loading && !error && sessions.length === 0 && (
-          <p className="text-gray-600 text-sm">Список созданных сессий пуст.</p>
-        )}
-        {!loading && !error && sessions.length > 0 && (
-          <ul className="space-y-3">
-            {sessions.map((s) => (
-              <li key={s.id} className="border-b border-gray-200 pb-3 last:border-0 flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium text-gray-900">{s.name}</div>
-                  {s.description && (
-                    <div className="text-sm text-gray-600 mt-1">{s.description}</div>
-                  )}
-                  <div className="text-xs text-gray-500 mt-1">
-                    {s.isPrivate ? "Приватная" : "Публичная"}
+    <PageLayout
+      title="Мои сессии"
+      description="Созданные вами игровые столы"
+      actions={
+        <Button onClick={() => navigate("/sessions/create")}>Создать сессию</Button>
+      }
+    >
+      {loading && (
+        <div className="flex justify-center py-16">
+          <Spinner size="lg" />
+        </div>
+      )}
+      {error && <Alert variant="error">{error}</Alert>}
+      {!loading && !error && sessions.length === 0 && (
+        <Card>
+          <EmptyState
+            title="Список сессий пуст"
+            description="Создайте первую сессию, чтобы начать игру за столом."
+            action={
+              <Button onClick={() => navigate("/sessions/create")}>Создать сессию</Button>
+            }
+          />
+        </Card>
+      )}
+      {!loading && !error && sessions.length > 0 && (
+        <ul className="space-y-3">
+          {sessions.map((s) => {
+            const isOwner = user?.id === s.createdBy;
+            return (
+              <li key={s.id}>
+                <Card className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="font-medium text-text">{s.name}</h2>
+                      <Badge variant={s.isPrivate ? "warning" : "primary"}>
+                        {s.isPrivate ? "Приватная" : "Публичная"}
+                      </Badge>
+                    </div>
+                    {s.description && (
+                      <p className="text-sm text-text-secondary mt-1">{s.description}</p>
+                    )}
                   </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => navigate(`/sessions/${s.id}`)}
-                  className="shrink-0 px-3 py-1.5 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-500"
-                >
-                  Войти
-                </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {isOwner && (
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => setDeleteTarget(s)}
+                      >
+                        Удалить
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        navigate(`/sessions/${s.id}`, {
+                          state: { returnTo: location.pathname },
+                        })
+                      }
+                    >
+                      Войти
+                    </Button>
+                  </div>
+                </Card>
               </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
+            );
+          })}
+        </ul>
+      )}
+
+      <Modal
+        open={deleteTarget !== null}
+        onClose={() => !deleting && setDeleteTarget(null)}
+        title="Удалить сессию?"
+        footer={
+          <>
+            <Button variant="secondary" disabled={deleting} onClick={() => setDeleteTarget(null)}>
+              Отмена
+            </Button>
+            <Button variant="danger" loading={deleting} onClick={() => void confirmDelete()}>
+              Удалить
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-text-secondary">
+          {deleteTarget
+            ? `Удалить сессию «${deleteTarget.name}»? Это действие необратимо.`
+            : ""}
+        </p>
+      </Modal>
+    </PageLayout>
   );
 }

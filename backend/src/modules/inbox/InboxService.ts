@@ -170,6 +170,16 @@ export class InboxService {
     });
   }
 
+  static async markAllRead(userId: string): Promise<number> {
+    await InboxMessageModel.updateMany(
+      { recipientId: userId, status: "pending" },
+      { status: "read" }
+    );
+    const count = await InboxService.unreadCount(userId);
+    emitInboxUpdated(userId, count);
+    return count;
+  }
+
   static async act(messageId: string, userId: string, action: InboxAction) {
     const msg = await InboxMessageModel.findById(messageId);
     if (!msg || String(msg.recipientId) !== userId) {

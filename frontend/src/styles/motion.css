@@ -1,0 +1,54 @@
+/* Light motion — respects prefers-reduced-motion */
+
+.modal-overlay {
+  animation: fade-in var(--transition-fast) ease;
+}
+
+.modal-content {
+  animation: scale-in var(--transition-fast) ease;
+}
+
+.dropdown-panel {
+  animation: fade-in var(--transition-fast) ease, slide-down var(--transition-fast) ease;
+  transform-origin: top right;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    transform: translateY(-4px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay,
+  .modal-content,
+  .dropdown-panel,
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -165,10 +165,10 @@ function TeamPermissionRow({
   const visValue = aggregateVis(access, objectKeys, teamId);
 
   return (
-    <div className="border border-gray-200 rounded p-2 space-y-2 bg-gray-50">
+    <div className="border border-border rounded p-2 space-y-2 bg-background">
       <div className="flex items-center gap-2">
         <select
-          className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm bg-white"
+          className="flex-1 border border-border rounded px-2 py-1 text-sm bg-surface"
           value={teamId}
           disabled={!canManage}
           onChange={(e) => onTeamChange(e.target.value)}
@@ -183,7 +183,7 @@ function TeamPermissionRow({
           <button
             type="button"
             disabled={!canManage}
-            className="px-2 py-1 text-xs text-gray-600 border border-gray-300 rounded hover:bg-white disabled:opacity-50"
+            className="px-2 py-1 text-xs text-text-secondary border border-border rounded hover:bg-surface disabled:opacity-50"
             title="Убрать строку"
             onClick={onRemove}
           >
@@ -192,11 +192,11 @@ function TeamPermissionRow({
         )}
       </div>
 
-      <label className="block text-xs text-gray-600">
+      <label className="block text-xs text-text-secondary">
         Видимость
         <select
           disabled={!canManage}
-          className="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-sm bg-white"
+          className="mt-1 w-full border border-border rounded px-2 py-1 text-sm bg-surface"
           value={visValue}
           onChange={(e) => {
             const raw = e.target.value as VisUi;
@@ -218,11 +218,11 @@ function TeamPermissionRow({
       {PERMISSIONS.map((perm) => {
         const permValue = aggregatePerm(access, objectKeys, teamId, perm);
         return (
-          <label key={perm} className="flex items-center justify-between text-xs text-gray-600 gap-2">
+          <label key={perm} className="flex items-center justify-between text-xs text-text-secondary gap-2">
             <span className="truncate">{perm}</span>
             <select
               disabled={!canManage}
-              className="border border-gray-300 rounded px-1 py-0.5 text-xs bg-white"
+              className="border border-border rounded px-1 py-0.5 text-xs bg-surface"
               value={permValue}
               onChange={(e) => {
                 const raw = e.target.value as PermUi;
@@ -312,14 +312,14 @@ export function ObjectPermissionsSection({
   const multi = objectKeys.length > 1;
 
   return (
-    <div className="border-t border-gray-200 pt-3 mt-3 space-y-2">
+    <div className="border-t border-border pt-3 mt-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <div className="text-xs font-medium text-gray-500">
+          <div className="text-xs font-medium text-text-secondary">
             {multi ? `Разрешения (${objectKeys.length} объектов)` : "Разрешения объекта"}
           </div>
           {multi && (
-            <div className="text-[10px] text-gray-400 mt-0.5">
+            <div className="text-[10px] text-text-muted mt-0.5">
               Изменения применяются ко всем выделенным
             </div>
           )}
@@ -327,7 +327,7 @@ export function ObjectPermissionsSection({
         {canManage && availableToAdd.length > 0 && (
           <button
             type="button"
-            className="px-2 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-50"
+            className="px-2 py-0.5 text-xs border border-border rounded hover:bg-background"
             title="Добавить настройки для одной или нескольких команд"
             onClick={() => {
               setAddPanelOpen((o) => !o);
@@ -340,8 +340,8 @@ export function ObjectPermissionsSection({
       </div>
 
       {addPanelOpen && canManage && availableToAdd.length > 0 && (
-        <div className="border border-indigo-200 rounded p-2 bg-indigo-50/50 space-y-2">
-          <div className="text-xs text-gray-600">Выберите команды для добавления:</div>
+        <div className="border border-primary/30 rounded p-2 bg-primary-muted/50 space-y-2">
+          <div className="text-xs text-text-secondary">Выберите команды для добавления:</div>
           <ul className="max-h-32 overflow-auto space-y-1">
             {availableToAdd.map((t) => (
               <li key={t.id}>
@@ -360,21 +360,21 @@ export function ObjectPermissionsSection({
             <button
               type="button"
               disabled={pickedTeamIds.size === 0}
-              className="px-2 py-1 text-xs bg-indigo-600 text-white rounded disabled:opacity-50"
+              className="px-2 py-1 text-xs bg-primary text-white rounded disabled:opacity-50"
               onClick={confirmAddTeams}
             >
               Добавить выбранные ({pickedTeamIds.size})
             </button>
             <button
               type="button"
-              className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-white"
+              className="px-2 py-1 text-xs border border-border rounded hover:bg-surface"
               onClick={addAllRemaining}
             >
               Добавить все ({availableToAdd.length})
             </button>
             <button
               type="button"
-              className="px-2 py-1 text-xs text-gray-600 hover:underline"
+              className="px-2 py-1 text-xs text-text-secondary hover:underline"
               onClick={() => {
                 setAddPanelOpen(false);
                 setPickedTeamIds(new Set());

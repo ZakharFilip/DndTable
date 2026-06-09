@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { body } from "express-validator";
+import { body, CustomValidator } from "express-validator";
+import { hasDangerousContent } from "../../shared/safeText.js";
 import { requireAuth } from "../../shared/requireAuth";
 import { requireSessionParticipant } from "../../shared/requireSessionParticipant";
 import { validate } from "../../shared/validate";
@@ -10,14 +11,33 @@ import { getIoInstance } from "../../shared/io";
 
 const router = Router();
 
+const noDangerousContent: CustomValidator = (value) => {
+  if (typeof value !== "string") return true;
+  if (hasDangerousContent(value)) {
+    throw new Error("Поле содержит недопустимые символы");
+  }
+  return true;
+};
+
 router.use(requireAuth);
 
 // POST /api/sessions — создать сессию
 router.post(
   "/",
   [
-    body("name").trim().notEmpty().withMessage("Название обязательно"),
-    body("description").optional().trim(),
+    body("name")
+      .trim()
+      .notEmpty()
+      .withMessage("Название обязательно")
+      .isLength({ max: 100 })
+      .withMessage("Название не длиннее 100 символов")
+      .custom(noDangerousContent),
+    body("description")
+      .optional()
+      .trim()
+      .isLength({ max: 200 })
+      .withMessage("Описание не длиннее 200 символов")
+      .custom(noDangerousContent),
     body("isPrivate").optional().isBoolean().withMessage("isPrivate должно быть true/false"),
   ],
   validate,
@@ -70,6 +90,21 @@ router.get("/public", async (_req: Request, res: Response, next: NextFunction) =
     next(err);
   }
 });
+
+// DELETE /api/sessions/:id — удалить сессию (только создатель)
+router.delete(
+  "/:id",
+  requireValidObjectId("id"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = (req as Request & { userId: string }).userId;
+      await GameSessionsService.deleteSession(req.params.id, userId);
+      return res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 // POST /api/sessions/:id/join — войти в сессию (участник + команда по умолчанию)
 router.post(

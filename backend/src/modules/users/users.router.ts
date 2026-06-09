@@ -2,6 +2,8 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import { requireAuth } from "../../shared/requireAuth.js";
 import { UserSearchService } from "./UserSearchService.js";
 import { UserModel } from "./user.model.js";
+import { avatarUpload, deleteAvatarFile } from "./avatarUpload.js";
+import { HttpError } from "../../shared/HttpError.js";
 
 const router = Router();
 
@@ -44,5 +46,37 @@ router.get("/me", async (req: Request, res: Response, next: NextFunction) => {
     next(err);
   }
 });
+
+router.post(
+  "/me/avatar",
+  avatarUpload.single("avatar"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = (req as Request & { userId: string }).userId;
+      if (!req.file) {
+        throw new HttpError(400, "VALIDATION_ERROR", "Файл не загружен");
+      }
+
+      const user = await UserModel.findById(userId);
+      if (!user) {
+        throw new HttpError(404, "NOT_FOUND", "Пользователь не найден");
+      }
+
+      const oldAvatar = user.avatar;
+      user.avatar = req.file.filename;
+      await user.save();
+      deleteAvatarFile(oldAvatar);
+
+      return res.json({
+        success: true,
+        data: {
+          avatar: user.avatar,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 export default router;

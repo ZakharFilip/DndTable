@@ -23,6 +23,7 @@ import inboxRouter from './modules/inbox/inbox.router.js';
 import sessionInvitesRouter from './modules/gamesessions/session-invites/session-invites.router.js';
 import { FriendCodeGenerator } from './modules/users/FriendCodeGenerator.js';
 import { setIoInstance } from "./shared/io.js";
+import { AVATARS_DIR } from "./modules/users/avatarUpload.js";
 
 const PORT = Number(process.env.PORT || 4000);
 const SOCKET_CORS_ORIGIN = process.env.SOCKET_CORS_ORIGIN || 'http://localhost:5173';
@@ -41,6 +42,7 @@ async function main() {
   // Middleware (улучшенный порядок)
   app.use(cors({ origin: SOCKET_CORS_ORIGIN, credentials: true }));
   app.use(express.json()); // ✅ ЛУЧШЕ чем bodyParser для Express 4.16+
+  app.use("/avatars", express.static(AVATARS_DIR));
 
   const sessionMiddleware = session({
     name: SESSION_COOKIE_NAME,

@@ -1,94 +1,77 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import { register } from "../api/auth";
 import { useSession } from "../state/session";
+import { AuthLayout } from "../components/layout/AuthLayout";
+import { Alert, Button, Input, Label } from "../components/ui";
 
-export const RegisterPage: React.FC = () => {
+export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
   const { setUser } = useSession();
 
-  const validateEmail = (value: string) => {
-    if (!/^\S+@\S+\.\S+$/.test(value)) return "Неправильный формат почты";
+  const validateEmail = (v: string) =>
+    !/^\S+@\S+\.\S+$/.test(v) ? "Неправильный формат почты" : null;
+  const validateUsername = (v: string) => {
+    if (v.length < 5) return "Никнейм должен быть не короче 5 символов";
+    if (!/^[A-Za-z0-9_]+$/.test(v))
+      return "Только буквы, цифры и подчёркивание";
     return null;
   };
+  const validatePassword = (v: string) =>
+    v.length < 8 ? "Пароль должен содержать не менее 8 символов" : null;
+  const validateConfirm = (v: string) =>
+    v !== password ? "Пароли не совпадают" : null;
 
-  const validateUsername = (value: string) => {
-    if (value.length < 5) return "Никнейм должен быть не короче 5 символов";
-    if (!/^[A-Za-z0-9_]+$/.test(value)) return "Никнейм должен содержать только буквы, цифры и подчеркивание";
-    return null;
-  };
-
-  const validatePassword = (value: string) => {
-    if (value.length < 8) return "Пароль должен содержать не менее 8 символов";
-    return null;
-  };
-
-  const validateConfirm = (value: string) => {
-    if (value !== password) return "Пароли не совпадают";
-    return null;
-  };
-
-  const onBlur = (field: string) => {
-    let err: string | null = null;
-    if (field === "email") err = validateEmail(email);
-    if (field === "username") err = validateUsername(username);
-    if (field === "password") err = validatePassword(password);
-    if (field === "confirm") err = validateConfirm(confirm);
-
-    setErrors(prev => ({ ...prev, [field]: err }));
-  };
-
-  const canSubmit = !validateEmail(email) && !validatePassword(password) && !validateUsername(username) && !validateConfirm(confirm);
+  const validateAll = () => ({
+    email: validateEmail(email),
+    username: validateUsername(username),
+    password: validatePassword(password),
+    confirm: validateConfirm(confirm),
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setServerError(null);
     setSuccess(null);
-    if (!canSubmit) {
-      setErrors({
-        email: validateEmail(email),
-        username: validateUsername(username),
-        password: validatePassword(password),
-        confirm: validateConfirm(confirm)
-      });
-      return;
-    }
+    const next = validateAll();
+    setErrors(next);
+    if (Object.values(next).some(Boolean)) return;
 
     setLoading(true);
     try {
       const resp = await register({ email, password, username });
-      if (resp && resp.success) {
-        const { user } = resp.data;
-        setUser(user);
-        setSuccess("Регистрация прошла успешно! На вашу почту отправлено письмо с ссылкой для подтверждения.");
+      if (resp?.success) {
+        setUser(resp.data.user);
+        setSuccess(
+          "Регистрация прошла успешно! На вашу почту отправлено письмо с ссылкой для подтверждения."
+        );
       } else {
         setServerError(resp?.message || "Ошибка регистрации");
       }
-    } catch (err: any) {
-      if (err.response) {
-        const data = err.response.data;
-        if (data && data.error === "EMAIL_ALREADY_EXISTS") {
-          setServerError("Пользователь с такой почтой уже зарегистрирован");
-        } else if (data && data.error === "USERNAME_ALREADY_EXISTS") {
-          setServerError("Этот никнейм уже используется");
-        } else if (data && data.error === "VALIDATION_ERROR" && data.details) {
-          // Map server validation details to fields
-          const newErrors: Record<string, string | null> = {};
-          data.details.forEach((d: any) => { newErrors[d.field] = d.message; });
-          setErrors(prev => ({ ...prev, ...newErrors }));
-        } else {
-          setServerError(data.message || "Произошла ошибка");
-        }
+    } catch (err: unknown) {
+      const e = err as {
+        response?: { data?: { error?: string; message?: string; details?: { field: string; message: string }[] } };
+      };
+      const data = e.response?.data;
+      if (data?.error === "EMAIL_ALREADY_EXISTS") {
+        setServerError("Пользователь с такой почтой уже зарегистрирован");
+      } else if (data?.error === "USERNAME_ALREADY_EXISTS") {
+        setServerError("Этот никнейм уже используется");
+      } else if (data?.error === "VALIDATION_ERROR" && data.details) {
+        const newErrors: Record<string, string | null> = {};
+        data.details.forEach((d) => {
+          newErrors[d.field] = d.message;
+        });
+        setErrors((prev) => ({ ...prev, ...newErrors }));
       } else {
-        setServerError("Произошла ошибка. Попробуйте позже.");
+        setServerError(data?.message || "Произошла ошибка. Попробуйте позже.");
       }
     } finally {
       setLoading(false);
@@ -96,49 +79,82 @@ export const RegisterPage: React.FC = () => {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h2>Регистрация</h2>
-
-      <div>
-        <label>Электронная почта</label>
-        <input value={email} onChange={e => setEmail(e.target.value)} onBlur={() => onBlur("email")} />
-        {errors.email && <div role="alert">{errors.email}</div>}
-      </div>
-
-      <div>
-        <label>Никнейм</label>
-        <input value={username} onChange={e => setUsername(e.target.value)} onBlur={() => onBlur("username")} />
-        {errors.username && <div role="alert">{errors.username}</div>}
-      </div>
-
-      <div>
-        <label>Пароль</label>
-        <input value={password} type="password" onChange={e => setPassword(e.target.value)} onBlur={() => onBlur("password")} />
-        {errors.password && <div role="alert">{errors.password}</div>}
-        {/* Индикатор сложности (простая реализация) */}
-        <div>Сила пароля: {password.length >= 12 ? "Сильный" : password.length >= 8 ? "Средний" : "Слабый"}</div>
-      </div>
-
-      <div>
-        <label>Подтверждение пароля</label>
-        <input value={confirm} type="password" onChange={e => setConfirm(e.target.value)} onBlur={() => onBlur("confirm")} />
-        {errors.confirm && <div role="alert">{errors.confirm}</div>}
-      </div>
-
-      <div>
-        <button type="submit" disabled={!canSubmit || loading}>
-          {loading ? "..." : "Зарегистрироваться"}
-        </button>
-      </div>
-
-      {serverError && <div role="alert">{serverError}</div>}
-      {success && (
-        <div>
-          <div>{success}</div>
-          <button type="button" onClick={() => (window.location.href = "/login")}>Вернуться на страницу входа</button>
+    <AuthLayout
+      title="Регистрация"
+      subtitle="Создайте аккаунт для игры за столом"
+      footer={
+        <>
+          Уже есть аккаунт?{" "}
+          <Link to="/login" className="text-primary hover:text-primary-hover font-medium">
+            Войти
+          </Link>
+        </>
+      }
+    >
+      {success ? (
+        <div className="space-y-4">
+          <Alert variant="success">{success}</Alert>
+          <Button variant="secondary" className="w-full" onClick={() => (window.location.href = "/login")}>
+            Перейти ко входу
+          </Button>
         </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="reg-email" required>
+              Электронная почта
+            </Label>
+            <Input
+              id="reg-email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              error={errors.email}
+            />
+          </div>
+          <div>
+            <Label htmlFor="reg-username" required>
+              Никнейм
+            </Label>
+            <Input
+              id="reg-username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              error={errors.username}
+            />
+          </div>
+          <div>
+            <Label htmlFor="reg-password" required>
+              Пароль
+            </Label>
+            <Input
+              id="reg-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              error={errors.password}
+            />
+            <p className="mt-1 text-xs text-text-muted">
+              Сила: {password.length >= 12 ? "сильный" : password.length >= 8 ? "средний" : "слабый"}
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="reg-confirm" required>
+              Подтверждение пароля
+            </Label>
+            <Input
+              id="reg-confirm"
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              error={errors.confirm}
+            />
+          </div>
+          {serverError && <Alert variant="error">{serverError}</Alert>}
+          <Button type="submit" className="w-full" loading={loading}>
+            Зарегистрироваться
+          </Button>
+        </form>
       )}
-    </form>
+    </AuthLayout>
   );
-};
-export default RegisterPage;
+}

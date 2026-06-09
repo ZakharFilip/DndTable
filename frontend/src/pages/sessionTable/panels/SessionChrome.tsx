@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import type { LoadStatus } from "../hooks/useTableData";
 import type { SyncStatus } from "../../../tabletop/realtime/TableSync";
 
@@ -19,6 +19,12 @@ function statusLabel(loadStatus: LoadStatus, syncStatus: SyncStatus): string | n
   return null;
 }
 
+function statusColor(loadStatus: LoadStatus, syncStatus: SyncStatus): string {
+  if (loadStatus === "error" || syncStatus === "error") return "var(--color-error)";
+  if (syncStatus === "conflict") return "var(--color-warning)";
+  return "var(--color-text-secondary)";
+}
+
 export function SessionChrome({
   loadStatus,
   syncStatus,
@@ -26,12 +32,15 @@ export function SessionChrome({
   onOpenTeams,
   teamsOpen,
 }: SessionChromeProps) {
+  const location = useLocation();
+  const returnTo =
+    (location.state as { returnTo?: string } | null)?.returnTo ?? "/sessions";
   const status = statusLabel(loadStatus, syncStatus);
   const loaded = loadStatus === "loaded";
 
   return (
     <div className="st-chrome">
-      <Link to="/sessions" className="st-hud-btn" title="К списку сессий">
+      <Link to={returnTo} className="st-hud-btn" title="Назад">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M15 18l-6-6 6-6" />
         </svg>
@@ -40,12 +49,7 @@ export function SessionChrome({
       <button
         type="button"
         onClick={onOpenTeams}
-        className="st-hud-btn"
-        style={
-          teamsOpen
-            ? { background: "#4f46e5", color: "#fff", borderColor: "#4338ca" }
-            : undefined
-        }
+        className={`st-hud-btn${teamsOpen ? " st-hud-btn--active" : ""}`}
         title="Команды"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -57,18 +61,8 @@ export function SessionChrome({
 
       {status && (
         <span
-          className="st-hud-btn"
-          style={{
-            width: "auto",
-            padding: "0 10px",
-            fontSize: 12,
-            color:
-              loadStatus === "error" || syncStatus === "error"
-                ? "#dc2626"
-                : syncStatus === "conflict"
-                  ? "#d97706"
-                  : "#4b5563",
-          }}
+          className="st-hud-btn st-hud-btn--wide"
+          style={{ color: statusColor(loadStatus, syncStatus) }}
         >
           {status}
         </span>
@@ -78,16 +72,8 @@ export function SessionChrome({
         type="button"
         onClick={onFlushNow}
         disabled={!loaded}
-        className="st-hud-btn"
-        style={{
-          width: "auto",
-          padding: "0 12px",
-          fontSize: 13,
-          background: "#059669",
-          color: "#fff",
-          borderColor: "#047857",
-          opacity: loaded ? 1 : 0.5,
-        }}
+        className="st-hud-btn st-hud-btn--success st-hud-btn--sync"
+        style={{ opacity: loaded ? 1 : 0.5 }}
         title="Синхронизировать"
       >
         Sync
