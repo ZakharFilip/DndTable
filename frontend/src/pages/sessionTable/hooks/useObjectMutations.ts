@@ -104,8 +104,6 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       const current = objectsRef.current.find((o) => o.key === key);
       if (!current) return;
       const baseVersion = current.version;
-      const x = current.obj.transform.position.x;
-      const y = current.obj.transform.position.y;
 
       syncSetObjects(objectsRef, setObjects, (prev) =>
         prev.map((o) => (o.key === key ? { ...o, version: o.version + 1 } : o))
@@ -118,10 +116,8 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
           action: "update",
           key,
           baseVersion,
+          // Props-only patch → ChangeObjectProperties on server (not ModifyTransform).
           patch: {
-            x,
-            y,
-            sortOrder: current.sortOrder,
             props: (latest?.obj ?? current.obj) as unknown as Record<string, unknown>,
           },
         },
@@ -169,7 +165,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       if (touched.length === 0) return;
 
       const keySet = new Set(keys);
-      setObjects((prev) =>
+      syncSetObjects(objectsRef, setObjects, (prev) =>
         prev.map((o) => (keySet.has(o.key) ? { ...o, version: o.version + 1 } : o))
       );
 

@@ -21,6 +21,4 @@ const UserSchema = new Schema<IUser>(
   { timestamps: true }
 );
 
-UserSchema.index({ username: 1 });
-
 export const UserModel = model<IUser>("User", UserSchema);

@@ -29,7 +29,6 @@ const TableObjectSchema = new Schema<ITableObject>(
   { timestamps: true }
 );
 
-TableObjectSchema.index({ gameSessionId: 1 });
 TableObjectSchema.index({ gameSessionId: 1, type: 1 });
 TableObjectSchema.index({ gameSessionId: 1, key: 1 }, { unique: true });
 

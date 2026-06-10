@@ -32,8 +32,6 @@ const SessionStateSchema = new Schema<ISessionState>(
   { timestamps: false }
 );
 
-SessionStateSchema.index({ gameSessionId: 1 }, { unique: true });
-
 export const SessionStateModel = model<ISessionState>(
   "SessionState",
   SessionStateSchema,

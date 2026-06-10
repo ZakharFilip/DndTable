@@ -87,10 +87,15 @@ export class TableSync {
     this.params.socket.emit(
       "table:patch",
       { tableId: this.params.tableId, clientId: this.params.clientId, ops: batch },
-      async (ack: { success?: boolean; status?: number; error?: string }) => {
+      async (ack: { success?: boolean; status?: number; error?: string; message?: string }) => {
         if (ack?.success) {
           this.params.setStatus("ok");
           window.setTimeout(() => this.params.setStatus("idle"), 800);
+          return;
+        }
+        if (ack?.status === 403 || ack?.error === "FORBIDDEN") {
+          this.params.setStatus("error");
+          window.setTimeout(() => this.params.setStatus("idle"), 2000);
           return;
         }
         if (ack?.status === 409 || ack?.error === "VERSION_CONFLICT") {
