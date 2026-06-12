@@ -1,11 +1,12 @@
-/** PM2 process file — run from repo root: pm2 start ecosystem.config.cjs */
+const path = require("path");
+
+/** PM2 — запуск из корня репо: pm2 start ecosystem.config.cjs */
 module.exports = {
   apps: [
     {
       name: "dndtable-api",
-      cwd: __dirname,
-      script: "npm",
-      args: "start",
+      cwd: path.join(__dirname, "backend"),
+      script: "dist/server.js",
       env: {
         NODE_ENV: "production",
       },

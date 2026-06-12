@@ -148,9 +148,10 @@ GET http://localhost:4000/health
 
 ## Деплой
 
-Пошаговая инструкция для VPS, Docker и PaaS: **[DEPLOY.md](DEPLOY.md)**.
+- **VPS + Nginx (подробно):** **[DEPLOY-VPS.md](DEPLOY-VPS.md)** — пошагово, контрольные точки, типичные ошибки
+- Обзор всех сценариев: **[DEPLOY.md](DEPLOY.md)**
 
-Кратко: `npm run build` → `NODE_ENV=production npm start` (backend). Фронт отдаёт Nginx (`SERVE_STATIC=false`) или сам backend (`SERVE_STATIC=true` для Docker/PaaS). Нужны MongoDB, HTTPS и переменные из `infra/*.production.example`.
+Кратко: `npm run build` → PM2 → Nginx (HTTP) → Certbot → `SOCKET_CORS_ORIGIN=https://...` → `pm2 restart`.
 
 ---
 

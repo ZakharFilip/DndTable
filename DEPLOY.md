@@ -85,6 +85,17 @@ chmod +x scripts/mongo-create-indexes.sh
 
 ## Сценарий A: VPS + Nginx + PM2
 
+**Подробная пошаговая инструкция с контрольными точками и диагностикой:** **[DEPLOY-VPS.md](DEPLOY-VPS.md)**.
+
+Ниже — краткая версия. Если что-то не работает, откройте DEPLOY-VPS.md (раздел «Частые ошибки» и «Диагностика»).
+
+### Порядок (важно)
+
+1. MongoDB → env → индексы → `npm run build`
+2. PM2 → проверка `curl http://127.0.0.1:4000/health`
+3. Nginx **HTTP** (`infra/nginx/dndtable.http.conf.example`) — **не** SSL-конфиг до Certbot
+4. Certbot → сменить `SOCKET_CORS_ORIGIN` на `https://...` → `pm2 restart`
+
 ### 1. Установка ПО на Ubuntu
 
 ```bash
@@ -94,6 +105,8 @@ curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 sudo npm install -g pm2
 ```
+
+MongoDB — см. [DEPLOY-VPS.md § Шаг 1](DEPLOY-VPS.md#шаг-1-mongodb-на-vps).
 
 ### 2. Клонирование и сборка
 
@@ -105,8 +118,7 @@ cd /opt/dndtable
 
 cp infra/backend.env.production.example backend/.env
 cp infra/frontend.env.production.example frontend/.env
-# Отредактируйте backend/.env — MONGODB_URI, SESSION_SECRET, SOCKET_CORS_ORIGIN
-# В backend/.env: SERVE_STATIC=false
+nano backend/.env   # MONGODB_URI, SESSION_SECRET, SOCKET_CORS_ORIGIN=http://yourdomain.com, SERVE_STATIC=false
 
 npm install
 npm run build
@@ -114,7 +126,9 @@ npm run build
 
 ### 3. Индексы MongoDB
 
-См. раздел выше.
+```bash
+mongosh < MongoFUCK/create-indexes.js
+```
 
 ### 4. Запуск backend
 
@@ -123,17 +137,21 @@ cd /opt/dndtable
 pm2 start ecosystem.config.cjs
 pm2 save
 pm2 startup
+curl -s http://127.0.0.1:4000/health
 ```
 
-### 5. Nginx
+### 5. Nginx (только HTTP, до Certbot)
 
 ```bash
-sudo cp /opt/dndtable/infra/nginx/dndtable.conf.example /etc/nginx/sites-available/dndtable
-# Замените YOUR_DOMAIN и путь /opt/dndtable при необходимости
-sudo ln -s /etc/nginx/sites-available/dndtable /etc/nginx/sites-enabled/
+sudo cp /opt/dndtable/infra/nginx/dndtable.http.conf.example /etc/nginx/sites-available/dndtable
+sudo nano /etc/nginx/sites-available/dndtable   # замените YOUR_DOMAIN
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo ln -sf /etc/nginx/sites-available/dndtable /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+Не используйте `dndtable.conf.example` (с SSL) до получения сертификата — будет ошибка `cannot load certificate`.
 
 ### 6. SSL
 
@@ -141,12 +159,14 @@ sudo systemctl reload nginx
 sudo certbot --nginx -d yourdomain.com
 ```
 
+Затем в `backend/.env`: `SOCKET_CORS_ORIGIN=https://yourdomain.com` и `pm2 restart dndtable-api`.
+
 ### 7. Проверка
 
 - `https://yourdomain.com/health` → `{ "ok": true, ... }`
 - Регистрация / вход — cookie `dnd.sid` в DevTools
-- Открыть `/sessions/:id` — синхронизация объектов (Socket.IO)
-- Загрузка аватара в профиле
+- `/sessions/:id` — Socket.IO в Network
+- Аватар в профиле
 
 ---
 
