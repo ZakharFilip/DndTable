@@ -118,23 +118,38 @@ export function useCopyPaste(params: UseCopyPasteParams) {
     [createObject, screenCenterWorld]
   );
 
+  const buildClipboardPayloadForKeys = useCallback(
+    (keys: string[]): string | null => {
+      if (keys.length === 0) return null;
+      const objs = keys
+        .map((k) => objectsRef.current.find((o) => o.key === k)?.obj)
+        .filter(Boolean) as TabletopBaseObject[];
+      if (objs.length === 0) return null;
+      return CLIP_PREFIX + JSON.stringify({ v: 1, objects: objs });
+    },
+    [objectsRef]
+  );
+
   const buildClipboardPayload = useCallback((): string | null => {
     const keys = selectedKeys.length ? selectedKeys : primaryKey ? [primaryKey] : [];
-    if (keys.length === 0) return null;
-    const objs = keys
-      .map((k) => objectsRef.current.find((o) => o.key === k)?.obj)
-      .filter(Boolean) as TabletopBaseObject[];
-    if (objs.length === 0) return null;
-    return CLIP_PREFIX + JSON.stringify({ v: 1, objects: objs });
-  }, [selectedKeys, primaryKey, objectsRef]);
+    return buildClipboardPayloadForKeys(keys);
+  }, [selectedKeys, primaryKey, buildClipboardPayloadForKeys]);
+
+  const copyKeys = useCallback(
+    async (keys: string[]) => {
+      if (!id) return;
+      const payload = buildClipboardPayloadForKeys(keys);
+      if (!payload) return;
+      memoryClipboardRef.current = payload;
+      await navigator.clipboard?.writeText(payload).catch(() => {});
+    },
+    [id, buildClipboardPayloadForKeys]
+  );
 
   const copySelection = useCallback(async () => {
-    if (!id) return;
-    const payload = buildClipboardPayload();
-    if (!payload) return;
-    memoryClipboardRef.current = payload;
-    await navigator.clipboard?.writeText(payload).catch(() => {});
-  }, [id, buildClipboardPayload]);
+    const keys = selectedKeys.length ? selectedKeys : primaryKey ? [primaryKey] : [];
+    await copyKeys(keys);
+  }, [copyKeys, selectedKeys, primaryKey]);
 
   const pasteFromText = useCallback(
     (text: string): boolean => {
@@ -268,6 +283,7 @@ export function useCopyPaste(params: UseCopyPasteParams) {
 
   return {
     copySelection,
+    copyKeys,
     pasteSelection,
     pasteFromText,
     importImageSprite,

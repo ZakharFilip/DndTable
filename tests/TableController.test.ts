@@ -35,6 +35,32 @@ describe("TableController.wheelZoom", () => {
   });
 });
 
+describe("TableController.pinchZoom", () => {
+  it("anchors zoom at midpoint", () => {
+    const c = new TableController({ minScale: 0.1, maxScale: 5 });
+    const r = c.pinchZoom({
+      midpoint: { x: 100, y: 100 },
+      scaleFactor: 2,
+      stagePos: { x: 0, y: 0 },
+      scale: 1,
+    });
+    expect(r.scale).toBe(2);
+    expect(r.stagePos.x).toBe(-100);
+    expect(r.stagePos.y).toBe(-100);
+  });
+
+  it("clamps pinch scale to maxScale", () => {
+    const c = new TableController({ minScale: 0.1, maxScale: 2 });
+    const r = c.pinchZoom({
+      midpoint: { x: 0, y: 0 },
+      scaleFactor: 10,
+      stagePos: { x: 0, y: 0 },
+      scale: 1,
+    });
+    expect(r.scale).toBe(2);
+  });
+});
+
 describe("TableController drag", () => {
   it("applies a delta to dragged keys only", () => {
     const c = new TableController();

@@ -4,26 +4,17 @@ import type { TabletopBaseObject } from "@dnd-table/shared";
 
 import { CanvasRenderer } from "../tabletop/render/CanvasRenderer";
 import { SpatialIndex } from "../tabletop/spatial";
-import {
-  getVisibleWorldRect,
-  hitObject,
-  objectInRect,
-  screenToWorld,
-} from "../tabletop/geometry";
+import { getVisibleWorldRect } from "../tabletop/geometry";
 import { TableController } from "../tabletop/controller/TableController";
-import { pickHandle } from "../tabletop/controller/handles";
 import {
-  nextObjectKey,
-  toTabletopText,
   type Layer,
   type TableObjectState,
   type Tool,
 } from "../tabletop/model";
-import { createTabletopShape, type ShapeVariantId } from "../tabletop/shapes";
+import { type ShapeVariantId } from "../tabletop/shapes";
 import {
   applyBroadcastToLayers,
   applyBroadcastToObjects,
-  cloneObj,
   resolveLayersFromSession,
   type ParsedSession,
 } from "./sessionTable/helpers";
@@ -41,6 +32,10 @@ import { TextEditOverlay } from "./sessionTable/panels/TextEditOverlay";
 import { TableContextMenu } from "./sessionTable/panels/TableContextMenu";
 import { TeamSettingsPanel } from "./sessionTable/panels/TeamSettingsPanel";
 import { useSessionAccess } from "./sessionTable/hooks/useSessionAccess";
+import { useTableCanvasInput } from "./sessionTable/hooks/useTableCanvasInput";
+import { LongPressIndicator } from "./sessionTable/panels/LongPressIndicator";
+import { MobileActionMenu, type MobileMenuState } from "./sessionTable/panels/MobileActionMenu";
+import { useCoarsePointer } from "../hooks/useCoarsePointer";
 import { filterObjectsForViewer } from "../tabletop/visibility";
 import { getSocket } from "../realtime/socket";
 import "./sessionTable/SessionTableLayout.css";
@@ -76,7 +71,8 @@ export default function SessionTablePage() {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editingText, setEditingText] = useState<string>("");
-  const contextKeyRef = useRef<string | null>(null);
+  /** Selection snapshot when context menu opens (supports multi-select). */
+  const contextMenuKeysRef = useRef<string[]>([]);
   const selectionDraftRef = useRef<{
     start: { x: number; y: number };
     end: { x: number; y: number };
@@ -94,12 +90,10 @@ export default function SessionTablePage() {
   const shouldSyncDefaultLayerRef = useRef(false);
 
   const dragObjectKey = useRef<string | null>(null);
-  const dragStartObjPos = useRef<{ x: number; y: number } | null>(null);
   const shapeDraft = useRef<{
     start: { x: number; y: number };
     end: { x: number; y: number };
   } | null>(null);
-  const lastWorldRef = useRef<{ x: number; y: number } | null>(null);
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const rendererRef = useRef<CanvasRenderer | null>(null);
   const controllerRef = useRef<TableController | null>(null);
@@ -127,8 +121,15 @@ export default function SessionTablePage() {
   // ---- Loading & sync ----------------------------------------------------
 
   const sessionAccess = useSessionAccess(id);
+  const isCoarsePointer = useCoarsePointer();
   const [teamsOpen, setTeamsOpen] = useState(false);
-  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(() => !isCoarsePointer);
+  const [mobileMenu, setMobileMenu] = useState<MobileMenuState>({
+    open: false,
+    x: 0,
+    y: 0,
+  });
+  const [contextMenuTargetKeys, setContextMenuTargetKeys] = useState<string[]>([]);
   const isObjectVisibleRef = useRef(sessionAccess.isObjectVisible);
   useEffect(() => {
     isObjectVisibleRef.current = sessionAccess.isObjectVisible;
@@ -225,13 +226,13 @@ export default function SessionTablePage() {
           ? [selectedKey]
           : [];
     if (keys.length === 0) return;
-    contextKeyRef.current = null;
+    contextMenuKeysRef.current = [];
     deleteObjects(keys);
   }, [selectedKey, selectedKeys, deleteObjects]);
 
   // ---- Copy/paste --------------------------------------------------------
 
-  const { copySelection, pasteSelection, importImageSprite } = useCopyPaste({
+  const { copyKeys, pasteSelection, importImageSprite } = useCopyPaste({
     id,
     editingKey,
     currentTool,
@@ -337,24 +338,6 @@ export default function SessionTablePage() {
     if (base) createLayer(base);
   }, [id, loadStatus, layers, createLayer]);
 
-  // ---- Mouse handlers ----------------------------------------------------
-
-  const dragSnapshotRef = useRef<
-    Map<string, { obj: TabletopBaseObject; sortOrder: number }>
-  >(new Map());
-
-  const getCanvasPoint = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return null;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
-    };
-  }, []);
-
   const visibleObjects = useCallback(() => {
     const inView = spatial.query(
       getVisibleWorldRect(
@@ -380,343 +363,85 @@ export default function SessionTablePage() {
     return () => canvas.removeEventListener("wheel", onWheel);
   }, []);
 
-  const handleWheel = useCallback(
-    (e: React.WheelEvent<HTMLCanvasElement>) => {
-      e.preventDefault();
-      if (editingKey) return;
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      const pointerX = ((e.clientX - rect.left) / rect.width) * stageSize.width;
-      const pointerY = ((e.clientY - rect.top) / rect.height) * stageSize.height;
-
-      const next = controllerRef.current?.wheelZoom({
-        input: { deltaY: e.deltaY, pointer: { x: pointerX, y: pointerY } },
-        stagePos,
-        scale,
-      });
-      if (!next) return;
-      setStagePos(next.stagePos);
-      setScale(next.scale);
+  const handleMobileMenuOpen = useCallback(
+    (menu: MobileMenuState, keys: string[]) => {
+      contextMenuKeysRef.current = keys;
+      setMobileMenu(menu);
     },
-    [editingKey, stagePos, scale, stageSize.width, stageSize.height]
+    []
   );
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (editingKey) return;
-
-      // Middle-button pans.
-      if (e.button === 1) {
-        e.preventDefault();
-        const pt = getCanvasPoint(e);
-        if (!pt) return;
-        setIsGrabbing(true);
-        controllerRef.current?.startPan({ pointer: pt, stagePos: stagePosRef.current });
-        return;
-      }
-      if (e.button !== 0) return;
-
-      const pt = getCanvasPoint(e);
-      if (!pt) return;
-      setIsGrabbing(true);
-      const world = screenToWorld(pt.x, pt.y, stagePosRef.current, scaleRef.current);
-
-      if (currentTool === "shape" || currentTool === "text") {
-        shapeDraft.current = { start: world, end: world };
-        setDraftRect({ start: world, end: world });
-        return;
-      }
-
-      const visible = visibleObjects();
-
-      // Handles: pick before body hit-test (rotate handle sits outside the shape).
-      if (currentTool === "select" && selectedKey) {
-        const sel = objectsRef.current.find((o) => o.key === selectedKey);
-        const meta = (sel?.obj.metadata as { kind?: string } | undefined) ?? {};
-        if (sel && meta.kind !== "chip") {
-          const lid = sel.obj.layerId ?? null;
-          const layer = lid ? layersRef.current.find((l) => l.id === lid) : null;
-          if (layer?.locked) return;
-          const picked = pickHandle({
-            obj: sel.obj,
-            pointerScreen: pt,
-            stagePos: stagePosRef.current,
-            scale: scaleRef.current,
-          });
-          if (picked) {
-            dragSnapshotRef.current = new Map([
-              [selectedKey, { obj: cloneObj(sel.obj), sortOrder: sel.sortOrder }],
-            ]);
-            if (picked.kind === "rotate") {
-              controllerRef.current?.startRotate({ key: selectedKey, obj: sel.obj, world });
-            } else {
-              controllerRef.current?.startResize({
-                key: selectedKey,
-                obj: sel.obj,
-                handle: picked.handle,
-                world,
-              });
-            }
-            return;
-          }
-        }
-      }
-
-      const hit = hitObject(world.x, world.y, visible);
-      if (hit) {
-        const lid = hit.obj.layerId ?? null;
-        const layer = lid ? layersRef.current.find((l) => l.id === lid) : null;
-        const wasMulti = selectedKeys.length > 1;
-        const inMulti = wasMulti && selectedKeys.includes(hit.key);
-
-        if (!hit.obj.groupId && e.ctrlKey) {
-          setSelectedKey(hit.key);
-          setSelectedKeys((prev) =>
-            prev.includes(hit.key) ? prev.filter((k) => k !== hit.key) : [...prev, hit.key]
-          );
-        } else if (inMulti && !e.shiftKey) {
-          setSelectedKey(hit.key);
-        } else {
-          const objectsForSel = objectsRef.current.map((o) => ({
-            key: o.key,
-            groupId: o.obj.groupId ?? null,
-          }));
-          const sel = controllerRef.current?.computeSelection({
-            hit: { key: hit.key, groupId: hit.obj.groupId ?? null },
-            shiftKey: e.shiftKey,
-            objects: objectsForSel,
-          }) ?? { selectedKey: hit.key, selectedKeys: [hit.key] };
-          setSelectedKey(sel.selectedKey);
-          if (!hit.obj.groupId && e.shiftKey) {
-            setSelectedKeys((prev) =>
-              prev.includes(hit.key) ? prev.filter((k) => k !== hit.key) : [...prev, hit.key]
-            );
-          } else {
-            setSelectedKeys(sel.selectedKeys);
-          }
-        }
-
-        if (layer?.locked) return;
-
-        dragObjectKey.current = hit.key;
-        dragStartObjPos.current = {
-          x: hit.obj.transform.position.x,
-          y: hit.obj.transform.position.y,
-        };
-        const keys =
-          selectedKeys.length > 1 && selectedKeys.includes(hit.key)
-            ? selectedKeys
-            : hit.obj.groupId
-              ? objectsRef.current
-                  .filter((o) => o.obj.groupId === hit.obj.groupId)
-                  .map((o) => o.key)
-              : [hit.key];
-        setDraggingKeys(keys);
-        controllerRef.current?.startDrag({
-          keys,
-          startWorld: world,
-          objects: objectsRef.current.map((o) => ({
-            key: o.key,
-            x: o.obj.transform.position.x,
-            y: o.obj.transform.position.y,
-          })),
-        });
-        const snap = new Map<string, { obj: TabletopBaseObject; sortOrder: number }>();
-        for (const k of keys) {
-          const cur = objectsRef.current.find((o) => o.key === k);
-          if (cur) snap.set(k, { obj: cloneObj(cur.obj), sortOrder: cur.sortOrder });
-        }
-        dragSnapshotRef.current = snap;
-        lastWorldRef.current = world;
-        return;
-      }
-
-      if (currentTool === "select") {
-        selectionDraftRef.current = { start: world, end: world };
-        setDraftRect({ start: world, end: world });
-        return;
-      }
-
-      setSelectedKey(null);
-      setSelectedKeys([]);
-    },
-    [editingKey, getCanvasPoint, currentTool, selectedKey, selectedKeys, visibleObjects]
-  );
-
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (editingKey) return;
-      if (!isGrabbing) return;
-      const pt = getCanvasPoint(e);
-      if (!pt) return;
-      const world = screenToWorld(pt.x, pt.y, stagePosRef.current, scaleRef.current);
-
-      if (shapeDraft.current && (currentTool === "shape" || currentTool === "text")) {
-        shapeDraft.current = { ...shapeDraft.current, end: world };
-        setDraftRect({ ...shapeDraft.current });
-        return;
-      }
-
-      if (selectionDraftRef.current && currentTool === "select") {
-        selectionDraftRef.current = { ...selectionDraftRef.current, end: world };
-        setDraftRect({ ...selectionDraftRef.current });
-        return;
-      }
-
-      const next = controllerRef.current?.moveTransform({ world, objects: objectsRef.current }) ?? null;
-      if (next) {
-        setObjects(next);
-        return;
-      }
-
-      if (dragObjectKey.current) {
-        const move = controllerRef.current?.moveDrag({ world }) ?? null;
-        if (!move) return;
-        setObjects((prev) => controllerRef.current!.applyDragToObjects(prev, move));
-        lastWorldRef.current = world;
-        return;
-      }
-
-      const nextPan = controllerRef.current?.movePan({ pointer: pt }) ?? null;
-      if (nextPan) setStagePos(nextPan);
-    },
-    [editingKey, getCanvasPoint, currentTool, isGrabbing]
-  );
-
-  const handleMouseUp = useCallback(() => {
-    if (!id) return;
-
-    if (selectionDraftRef.current && currentTool === "select") {
-      const { start, end } = selectionDraftRef.current;
-      const r = {
-        left: Math.min(start.x, end.x),
-        top: Math.min(start.y, end.y),
-        right: Math.max(start.x, end.x),
-        bottom: Math.max(start.y, end.y),
-      };
-      selectionDraftRef.current = null;
-      setDraftRect(null);
-
-      const picked = visibleObjects().filter((o) => objectInRect(o, r));
-      const keys = picked.map((o) => o.key);
-      setSelectedKeys(keys);
-      setSelectedKey(keys[0] ?? null);
-    }
-
-    if (shapeDraft.current && currentTool === "shape") {
-      const { start, end } = shapeDraft.current;
-      const left = Math.min(start.x, end.x);
-      const top = Math.min(start.y, end.y);
-      const w = Math.abs(end.x - start.x);
-      const h = Math.abs(end.y - start.y);
-      shapeDraft.current = null;
-      setDraftRect(null);
-
-      if (w >= 4 && h >= 4) {
-        const key = nextObjectKey("shape");
-        const obj = createTabletopShape(
-          activeShapeVariant,
-          { x: left, y: top, width: w, height: h },
-          { key, fillColor: "#60a5fa" }
-        );
-        createObject(key, obj);
-      }
-    }
-
-    if (shapeDraft.current && currentTool === "text") {
-      const { start, end } = shapeDraft.current;
-      const left = Math.min(start.x, end.x);
-      const top = Math.min(start.y, end.y);
-      const w = Math.abs(end.x - start.x);
-      const h = Math.abs(end.y - start.y);
-      shapeDraft.current = null;
-      setDraftRect(null);
-
-      if (w >= 10 && h >= 10) {
-        const key = nextObjectKey("text");
-        const obj = toTabletopText({ key, x: left, y: top, width: w, height: h, text: "" });
-        createObject(key, obj);
-        setEditingKey(key);
-        setEditingText("");
-      }
-    }
-
-    const transformKey = controllerRef.current?.endTransform();
-    if (transformKey) {
-      const cur = objectsRef.current.find((o) => o.key === transformKey);
-      if (cur) commitObjectWith(transformKey, cur.obj);
-    }
-
-    const draggedKey = dragObjectKey.current;
-    if (draggedKey) {
-      const movedKeys = controllerRef.current?.endDrag() ?? [draggedKey];
-      if (movedKeys.length > 0) commitObjectsBatch(movedKeys);
-
-      const touched = movedKeys
-        .map((k) => objectsRef.current.find((o) => o.key === k))
-        .filter(Boolean) as TableObjectState[];
-      if (touched.length > 0) {
-        const before = dragSnapshotRef.current;
-        if (before && before.size > 0) {
-          const undoOps = [];
-          const redoOps = [];
-          for (const [k, snap] of before.entries()) {
-            const after = objectsRef.current.find((o) => o.key === k);
-            if (!after) continue;
-            undoOps.push({
-              kind: "restore" as const,
-              key: k,
-              obj: snap.obj,
-              sortOrder: snap.sortOrder,
-            });
-            redoOps.push({
-              kind: "restore" as const,
-              key: k,
-              obj: cloneObj(after.obj),
-              sortOrder: after.sortOrder,
-            });
-          }
-          if (undoOps.length > 0) pushHistory({ undo: undoOps, redo: redoOps });
-        }
-      }
-    }
-
-    setIsGrabbing(false);
-    setDraggingKeys([]);
-    controllerRef.current?.endPan();
-    dragObjectKey.current = null;
-    dragStartObjPos.current = null;
-    dragSnapshotRef.current = new Map();
-    lastWorldRef.current = null;
-  }, [
+  const { longPressRing, canvasHandlers } = useTableCanvasInput({
+    canvasRef,
+    controllerRef,
+    isCoarsePointer,
     id,
+    editingKey,
     currentTool,
     activeShapeVariant,
+    selectedKey,
+    selectedKeys,
+    stagePos,
+    scale,
+    stageSize,
+    isGrabbing,
+    setIsGrabbing,
+    setStagePos,
+    setScale,
+    setObjects,
+    setSelectedKey,
+    setSelectedKeys,
+    setDraftRect,
+    setDraggingKeys,
+    setEditingKey,
+    setEditingText,
+    objectsRef,
+    layersRef,
+    stagePosRef,
+    scaleRef,
+    stageSizeRef,
+    selectionDraftRef,
+    shapeDraft,
+    dragObjectKey,
+    contextMenuKeysRef,
+    visibleObjects,
     createObject,
     commitObjectWith,
     commitObjectsBatch,
     pushHistory,
-    visibleObjects,
-  ]);
+    onMobileMenuOpen: handleMobileMenuOpen,
+    onContextMenuKeysChange: setContextMenuTargetKeys,
+  });
 
-  const handleMouseLeave = useCallback(() => handleMouseUp(), [handleMouseUp]);
+  const menuTargetKey = contextMenuTargetKeys[0] ?? primarySelectionKey;
+  const menuTargetObj = objects.find((o) => o.key === menuTargetKey)?.obj ?? null;
+  const showEditInMenu =
+    contextMenuTargetKeys.length === 1 && menuTargetObj?.type === "text";
 
-  const handleDoubleClick = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (editingKey) return;
-      const pt = getCanvasPoint(e);
-      if (!pt) return;
-      const world = screenToWorld(pt.x, pt.y, stagePosRef.current, scaleRef.current);
-      const hit = hitObject(world.x, world.y, visibleObjects());
-      if (hit && hit.obj.type === "text") {
-        setSelectedKey(hit.key);
-        setEditingKey(hit.key);
-        setEditingText(hit.obj.text?.text ?? "");
-      }
+  const handleEditFromMenu = useCallback(() => {
+    const key = contextMenuTargetKeys[0] ?? primarySelectionKey;
+    if (!key) return;
+    const obj = objectsRef.current.find((o) => o.key === key);
+    if (obj?.obj.type === "text") {
+      setSelectedKey(key);
+      setEditingKey(key);
+      setEditingText(obj.obj.text?.text ?? "");
+    }
+  }, [contextMenuTargetKeys, primarySelectionKey, setSelectedKey, setEditingKey, setEditingText, objectsRef]);
+
+  const handleAddPhoto = useCallback(
+    (file: File) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const sprite = typeof reader.result === "string" ? reader.result : "";
+        if (sprite) void importImageSprite(sprite);
+      };
+      reader.readAsDataURL(file);
     },
-    [editingKey, getCanvasPoint, visibleObjects]
+    [importImageSprite]
   );
+
+  const panelBackdropOpen = isCoarsePointer && (teamsOpen || inspectorOpen);
 
   // ---- Misc UI actions ---------------------------------------------------
 
@@ -798,6 +523,37 @@ export default function SessionTablePage() {
 
   return (
     <>
+      {panelBackdropOpen && (
+        <button
+          type="button"
+          className="st-panel-backdrop"
+          aria-label="Закрыть панель"
+          onClick={() => {
+            setTeamsOpen(false);
+            setInspectorOpen(false);
+          }}
+        />
+      )}
+
+      {longPressRing && (
+        <LongPressIndicator clientX={longPressRing.clientX} clientY={longPressRing.clientY} />
+      )}
+
+      <MobileActionMenu
+        menu={mobileMenu}
+        showEdit={showEditInMenu}
+        onClose={() => setMobileMenu((m) => ({ ...m, open: false }))}
+        onCopy={() => void copyKeys(contextMenuKeysRef.current)}
+        onPaste={() => void pasteSelection()}
+        onEdit={handleEditFromMenu}
+        onDelete={() => {
+          const keys = contextMenuKeysRef.current;
+          if (keys.length === 0) return;
+          contextMenuKeysRef.current = [];
+          deleteObjects(keys);
+        }}
+      />
+
       <div className="st-viewport">
       <div
         ref={containerRef}
@@ -827,18 +583,21 @@ export default function SessionTablePage() {
         >
           <div style={{ width: "100%", height: "100%" }}>
           <TableContextMenu
+            showEdit={showEditInMenu}
             onOpenChange={(open) => {
-              if (!open) contextKeyRef.current = null;
-            }}
-            onCopy={() => void copySelection()}
-            onPaste={() => void pasteSelection()}
-            onDelete={() => {
-              const key = contextKeyRef.current;
-              if (key) {
-                setSelectedKey(key);
-                setSelectedKeys([key]);
+              if (!open) {
+                contextMenuKeysRef.current = [];
+                setContextMenuTargetKeys([]);
               }
-              deleteSelected();
+            }}
+            onCopy={() => void copyKeys(contextMenuKeysRef.current)}
+            onPaste={() => void pasteSelection()}
+            onEdit={handleEditFromMenu}
+            onDelete={() => {
+              const keys = contextMenuKeysRef.current;
+              if (keys.length === 0) return;
+              contextMenuKeysRef.current = [];
+              deleteObjects(keys);
             }}
             trigger={
               <canvas
@@ -846,7 +605,7 @@ export default function SessionTablePage() {
                 width={stageSize.width}
                 height={stageSize.height}
                 className="st-canvas"
-                onWheel={handleWheel}
+                onWheel={canvasHandlers.onWheel}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
@@ -862,34 +621,13 @@ export default function SessionTablePage() {
                   };
                   reader.readAsDataURL(img);
                 }}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseLeave}
-                onDoubleClick={handleDoubleClick}
-                onContextMenu={(e) => {
-                  if (editingKey) {
-                    e.preventDefault();
-                    return;
-                  }
-                  if (isGrabbing) {
-                    e.preventDefault();
-                    return;
-                  }
-                  const pt = getCanvasPoint(e);
-                  if (!pt) return;
-                  const world = screenToWorld(pt.x, pt.y, stagePosRef.current, scaleRef.current);
-                  const hit = hitObject(world.x, world.y, visibleObjects());
-                  const key = hit?.key ?? (selectedKey ?? selectedKeys[0] ?? null);
-                  if (!key) {
-                    e.preventDefault();
-                    contextKeyRef.current = null;
-                    return;
-                  }
-                  setSelectedKey(key);
-                  setSelectedKeys([key]);
-                  contextKeyRef.current = key;
-                }}
+                onPointerDown={canvasHandlers.onPointerDown}
+                onPointerMove={canvasHandlers.onPointerMove}
+                onPointerUp={canvasHandlers.onPointerUp}
+                onPointerCancel={canvasHandlers.onPointerCancel}
+                onPointerLeave={canvasHandlers.onPointerLeave}
+                onDoubleClick={canvasHandlers.onDoubleClick}
+                onContextMenu={canvasHandlers.onContextMenu}
               />
             }
           />
@@ -904,6 +642,7 @@ export default function SessionTablePage() {
               scale={scaleRef.current}
               canvasRef={canvasRef}
               stageSize={stageSize}
+              isCoarsePointer={isCoarsePointer}
               onCancel={() => {
                 setEditingKey(null);
                 setEditingText("");
@@ -930,6 +669,14 @@ export default function SessionTablePage() {
         onFlushNow={flushNow}
         onOpenTeams={() => setTeamsOpen((v) => !v)}
         teamsOpen={teamsOpen}
+        isCoarsePointer={isCoarsePointer}
+        inspectorOpen={inspectorOpen}
+        onOpenInspector={() => setInspectorOpen((v) => !v)}
+        onUndo={undo}
+        onRedo={redo}
+        onDelete={deleteSelected}
+        canDelete={selectedKeys.length > 0 || Boolean(selectedKey)}
+        onAddPhoto={handleAddPhoto}
       />
 
       {sessionAccess.access && id && (

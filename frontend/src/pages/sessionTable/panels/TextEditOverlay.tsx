@@ -11,6 +11,7 @@ interface TextEditOverlayProps {
   scale: number;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   stageSize: { width: number; height: number };
+  isCoarsePointer?: boolean;
   onCancel: () => void;
   onCommit: (text: string) => void;
 }
@@ -23,6 +24,7 @@ export function TextEditOverlay({
   scale,
   canvasRef,
   stageSize,
+  isCoarsePointer,
   onCancel,
   onCommit,
 }: TextEditOverlayProps) {
@@ -80,8 +82,15 @@ export function TextEditOverlay({
         }
       }}
       onBlur={() => onCommit(editingText)}
-      className="fixed z-50 p-2 text-sm bg-surface/95 border border-primary rounded shadow-card"
-      style={{ left, top, width, height, resize: "none" }}
+      className="fixed z-50 p-3 bg-surface/95 border border-primary rounded shadow-card"
+      style={{
+        left,
+        top,
+        width,
+        height,
+        resize: "none",
+        fontSize: isCoarsePointer ? 16 : 14,
+      }}
     />,
     document.body
   );

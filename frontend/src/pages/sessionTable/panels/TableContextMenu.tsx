@@ -3,17 +3,21 @@ import type { ReactNode } from "react";
 
 interface TableContextMenuProps {
   trigger: ReactNode;
+  showEdit: boolean;
   onOpenChange: (open: boolean) => void;
   onCopy: () => void;
   onPaste: () => void;
+  onEdit?: () => void;
   onDelete: () => void;
 }
 
 export function TableContextMenu({
   trigger,
+  showEdit,
   onOpenChange,
   onCopy,
   onPaste,
+  onEdit,
   onDelete,
 }: TableContextMenuProps) {
   return (
@@ -42,6 +46,17 @@ export function TableContextMenu({
           >
             Вставить
           </ContextMenu.Item>
+          {showEdit && onEdit && (
+            <ContextMenu.Item
+              className="select-none rounded px-3 py-2 text-sm outline-none hover:bg-background focus:bg-background"
+              onSelect={(e) => {
+                e.preventDefault();
+                onEdit();
+              }}
+            >
+              Редактировать
+            </ContextMenu.Item>
+          )}
           <ContextMenu.Separator className="my-1 h-px bg-border" />
           <ContextMenu.Item
             className="select-none rounded px-3 py-2 text-sm outline-none hover:bg-background focus:bg-background"

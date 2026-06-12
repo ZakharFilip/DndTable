@@ -22,14 +22,71 @@ export class TableController {
   wheelZoom(params: { input: WheelInput; stagePos: StagePos; scale: number }): { stagePos: StagePos; scale: number } {
     const { input, stagePos, scale } = params;
     const newScale = input.deltaY > 0 ? scale / this.wheelScaleBy : scale * this.wheelScaleBy;
-    const clampedScale = Math.max(this.minScale, Math.min(this.maxScale, newScale));
+    return this.zoomAtPointer({
+      pointer: input.pointer,
+      stagePos,
+      scale,
+      nextScale: newScale,
+    });
+  }
 
+  /** Pinch zoom anchored at screen-space midpoint. scaleFactor = currentDistance / startDistance. */
+  pinchZoom(params: {
+    midpoint: { x: number; y: number };
+    scaleFactor: number;
+    stagePos: StagePos;
+    scale: number;
+  }): { stagePos: StagePos; scale: number } {
+    const { midpoint, scaleFactor, stagePos, scale } = params;
+    return this.zoomAtPointer({
+      pointer: midpoint,
+      stagePos,
+      scale,
+      nextScale: scale * scaleFactor,
+    });
+  }
+
+  private zoomAtPointer(params: {
+    pointer: { x: number; y: number };
+    stagePos: StagePos;
+    scale: number;
+    nextScale: number;
+  }): { stagePos: StagePos; scale: number } {
+    const { pointer, stagePos, scale, nextScale } = params;
+    const clampedScale = Math.max(this.minScale, Math.min(this.maxScale, nextScale));
     const nextStagePos = {
-      x: input.pointer.x - (input.pointer.x - stagePos.x) * (clampedScale / scale),
-      y: input.pointer.y - (input.pointer.y - stagePos.y) * (clampedScale / scale),
+      x: pointer.x - (pointer.x - stagePos.x) * (clampedScale / scale),
+      y: pointer.y - (pointer.y - stagePos.y) * (clampedScale / scale),
     };
-
     return { stagePos: nextStagePos, scale: clampedScale };
+  }
+
+  private twoFingerPanActive = false;
+  private twoFingerPanStart: { x: number; y: number } | null = null;
+  private twoFingerPanBaseStagePos: StagePos | null = null;
+
+  startTwoFingerPan(params: { midpoint: { x: number; y: number }; stagePos: StagePos }) {
+    this.twoFingerPanActive = true;
+    this.twoFingerPanStart = params.midpoint;
+    this.twoFingerPanBaseStagePos = params.stagePos;
+  }
+
+  moveTwoFingerPan(params: { midpoint: { x: number; y: number } }): StagePos | null {
+    if (!this.twoFingerPanActive || !this.twoFingerPanStart || !this.twoFingerPanBaseStagePos) {
+      return null;
+    }
+    const dx = params.midpoint.x - this.twoFingerPanStart.x;
+    const dy = params.midpoint.y - this.twoFingerPanStart.y;
+    return {
+      x: this.twoFingerPanBaseStagePos.x + dx,
+      y: this.twoFingerPanBaseStagePos.y + dy,
+    };
+  }
+
+  endTwoFingerPan() {
+    this.twoFingerPanActive = false;
+    this.twoFingerPanStart = null;
+    this.twoFingerPanBaseStagePos = null;
   }
 
   private panActive: boolean = false;

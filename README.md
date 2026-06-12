@@ -1,191 +1,242 @@
 # DnDTable (MVP)
 
-Виртуальный стол для настольных ролевых игр (2D). Монорепозиторий:
-- Backend: Node.js + TypeScript, Express, Socket.IO, MongoDB (Mongoose)
-- Frontend: React + TypeScript, Vite, TailwindCSS (PixiJS для канваса позже)
-- Shared: общие типы/схемы (Zod)
+Виртуальный стол для настольных ролевых игр (2D). Монорепозиторий на npm workspaces:
 
-Этот файл — быстрый онбординг: что установить, как запустить, где что лежит.
+- **Backend:** Node.js + TypeScript, Express, Socket.IO, MongoDB (Mongoose)
+- **Frontend:** React + TypeScript, Vite, TailwindCSS, HTML5 Canvas 2D
+- **Shared:** общие типы и схемы (`@dnd-table/shared`, Zod)
+
+Быстрый онбординг: что установить, как запустить, где что лежит.
 
 ---
 
 ## Требования
+
 - Node.js 18+ (рекомендовано LTS)
 - npm (идёт вместе с Node)
 - Git
-- Локальный MongoDB (по умолчанию `mongodb://localhost:27017`)
-  - MongoDB Community или Docker-контейнер
+- MongoDB 6+ (локально или в Docker)
 - Редактор: VS Code (по желанию)
-  - Расширения: TypeScript, TailwindCSS IntelliSense (и ESLint позже)
+  - Расширения: TypeScript, TailwindCSS IntelliSense, ESLint
 
-Опционально (позже):
-- MinIO/S3 для ассетов (на MVP используем локальную папку)
+Опционально (позже): MinIO/S3 для ассетов — на MVP используется локальная папка (`ASSETS_DIR`).
 
 ---
 
-## Установка проекта
+## Установка
 
-1) Клонирование
-```
+### 1. Клонирование
+
+```bash
 git clone <repo_url>
-cd DnDTable
+cd DndTable
 ```
 
-2) Переменные окружения
-- Backend:
-  - скопируйте `infra/backend.env.example` → `backend/.env`
-  - при необходимости отредактируйте `MONGODB_URI`, `SOCKET_CORS_ORIGIN`, `ASSETS_DIR`
-- Frontend:
-  - скопируйте `infra/frontend.env.example` → `frontend/.env`
-  - при необходимости отредактируйте `VITE_API_URL`, `VITE_SOCKET_URL`
+### 2. Переменные окружения
 
-3) Установка зависимостей
-- Backend (из корня репо):
-```
-npm install --workspace backend
-```
-- Frontend:
-```
-cd frontend
+- **Backend:** скопируйте `infra/backend.env.example` → `backend/.env`
+  - при необходимости измените `MONGODB_URI`, `SOCKET_CORS_ORIGIN`, `SESSION_SECRET`, `ASSETS_DIR`
+- **Frontend:** скопируйте `infra/frontend.env.example` → `frontend/.env`
+  - при необходимости измените `VITE_API_URL`, `VITE_SOCKET_URL`
+
+### 3. Зависимости
+
+Из корня репозитория (устанавливает все workspaces):
+
+```bash
 npm install
 ```
 
-Примечание (Windows PowerShell): не используйте `&&` между командами — запускайте их по одной строке.
-
-Это я пишу, там насёр ещё ебучий, который я видимо не весь помню, вот ещё команды 
-npm --workspace backend install express-validator
- 
-npm --workspace backend install bcrypt
-Если команда выше обосрётся(такое может быть), то поменяем эту шелуху на bcryptjs и в коде придётся несколько строк поменять.(npm --workspace backend install bcryptjs
-)
-
-
-
-npm install async
-либо:
-npm install express-async-errors 
-
+> **Windows PowerShell:** не склеивайте команды через `&&` — выполняйте построчно.
 
 ---
+
 ## MongoDB
 
-Теперь пишет не чатик, а я.
-Нужно ещё сделать MongoDB.
-Нужно скачать Docker https://www.docker.com/
-Делаешь там всё что надо, устанавливаешь.
+### Вариант A: Docker
 
-Команды для проверки:
-docker --version
-docker-compose --version
+Установите [Docker](https://www.docker.com/), затем:
 
-Затем нужно создать БДшку, команда:
-
+```powershell
 docker run -d ^
   --name mongodb ^
   -p 27017:27017 ^
   -e MONGO_INITDB_ROOT_USERNAME=admin ^
   -e MONGO_INITDB_ROOT_PASSWORD=passwd ^
-  -e MONGO_INITDB_DATABASE=dndTableBD ^
+  -e MONGO_INITDB_DATABASE=dndtable ^
   -v dnd_data:/data/db ^
   mongo:6
+```
 
+В `backend/.env` укажите URI с учётными данными, например:
 
-Потом соззать индексы, всё написанно в файле
-docker exec -i mongodb mongosh -u admin -p passwd --authenticationDatabase admin < Путь_к_файлу\DndTable\MongoFUCK\create-indexes.js
+```
+MONGODB_URI=mongodb://admin:passwd@localhost:27017/dndtable?authSource=admin
+```
 
+### Вариант B: локальная установка
+
+Запустите MongoDB Community на `mongodb://localhost:27017` и используйте `MONGODB_URI` из `infra/backend.env.example`.
+
+### Индексы
+
+После первого запуска создайте индексы скриптом `MongoFUCK/create-indexes.js`.
+
+Имя базы в скрипте должно совпадать с именем в `MONGODB_URI` (по умолчанию в примере — `dndtable`). При необходимости поправьте строку `db.getSiblingDB(...)` в скрипте.
+
+```powershell
+docker exec -i mongodb mongosh -u admin -p passwd --authenticationDatabase admin < MongoFUCK\create-indexes.js
+```
+
+Для локального Mongo без auth:
+
+```powershell
+mongosh < MongoFUCK\create-indexes.js
+```
+
+---
 
 ## Запуск в разработке
 
-В одном терминале (из корня):
-```
+Терминал 1 (из корня):
+
+```bash
 npm run dev:backend
 ```
-Бэкенд поднимется на `http://localhost:4000` (MongoDB должен быть запущен).
 
-В другом терминале (из корня или `frontend/`):
-```
+Бэкенд: `http://localhost:4000` (MongoDB должен быть запущен).
+
+Терминал 2 (из корня):
+
+```bash
 npm run dev:frontend
 ```
-Фронтенд запустится на `http://localhost:5173`.
+
+Фронтенд: `http://localhost:5173`.
 
 Проверка бэкенда:
+
 ```
 GET http://localhost:4000/health
 ```
-Должен вернуть `{ ok: true, ... }`.
+
+Ожидается ответ `{ ok: true, ... }`.
 
 ---
 
 ## Скрипты
-- Запуск бэкенда (dev): `npm run dev:backend`
-- Запуск фронтенда (dev): `npm run dev:frontend`
-- Сборка:
-  - Backend: `npm -w backend run build`
-  - Frontend: `npm -w frontend run build`
-- Прод-старт бэкенда: `npm start` (использует собранный `backend/dist`)
+
+| Команда | Описание |
+|---------|----------|
+| `npm run dev:backend` | Backend в dev-режиме (tsx watch) |
+| `npm run dev:frontend` | Frontend в dev-режиме (Vite) |
+| `npm run build` | Сборка shared → backend → frontend |
+| `npm start` | Прод-старт backend (`backend/dist`) |
+| `npm test` | Unit-тесты (Vitest, папка `tests/`) |
 
 ---
 
 ## Технологии
-- Backend: Express (REST), Socket.IO (realtime), Mongoose (MongoDB), Zod (валидация), JWT (auth), CORS, dotenv
-- Frontend: React + TS, Vite, TailwindCSS, React Router, (PixiJS для Canvas)
-- Shared: `@dnd-table/shared` (типы/схемы), `@dnd-table/scripts-sdk` (заглушка под скрипты)
+
+- **Backend:** Express (REST), Socket.IO (realtime), Mongoose, Zod, express-session + connect-mongo, bcrypt, express-validator, multer (аватары)
+- **Frontend:** React 19, Vite, TailwindCSS 4, React Router, Socket.IO client, HTML5 Canvas 2D (`TableController`, `CanvasRenderer`)
+- **Shared:** `@dnd-table/shared` (типы, ACL, патчи стола), `@dnd-table/scripts-sdk` (заглушка под скрипты)
+
+Редактор партий (`/party/:id`) — задел под PixiJS; основной игровой стол — Canvas 2D на `/sessions/:id`.
 
 ---
 
-## Структура репозитория (кратко)
-- `backend/` — сервер
-  - `src/modules/auth/` — авторизация (register/login/refresh/logout)
-  - `src/modules/users/` — профиль, друзья
-  - `src/modules/parties/` — партии, участники, команды, инвайты
-  - `src/modules/parties/acl/` — права (ACL)
-  - `src/modules/scenes/` — сцены, объекты и компоненты (данные)
-  - `src/modules/ecs/` — реестр компонент и операции
-  - `src/modules/realtime/` — Socket.IO шлюз (join/applyOperation)
-  - `src/assets/` — загрузка/выдача ассетов (локальная папка)
-  - `src/storage/` — подключение Mongo и репозитории
-  - `src/shared/` — общее (health, ошибки, middleware)
-  - В каждом модуле лежит `README.md` с задачами и “готово, когда”
-- `frontend/` — клиент
-  - `src/app/` — shell и роутинг
-  - `src/pages/` — страницы (`Login`, `Dashboard`, `Party`)
-  - `src/api/` — REST клиент
-  - `src/state/` — состояние (сессия, сцена)
-  - `src/realtime/` — клиент Socket.IO
-  - `src/party/` — панели редактора (Hierarchy, Inspector, Assets)
-  - `src/canvas/` — PixiJS сцена и инструменты
-  - В подпапках есть `README.md` с задачами
-- `packages/`
-  - `shared/` — общие типы/схемы (Zod)
-  - `scripts-sdk/` — задел под скрипты (пока заглушка)
-- `infra/`
-  - пример `.env` для backend/frontend и `README.md`
-- Корень:
-  - `TASKS.md` — план по вертикалям (MVP, приоритеты и критерии готовности)
+## Структура репозитория
+
+```
+backend/          — REST API + Socket.IO
+  modules/
+    auth/         — регистрация, вход, сессии
+    users/        — профиль, поиск, аватары
+    friends/      — друзья и заявки
+    inbox/        — входящие уведомления
+    gamesessions/ — игровые сессии, объекты стола, патчи, инвайты
+    access/       — участники, команды, права (ACL), видимость
+    scenes/       — сцены и объекты (данные, задел)
+    ecs/          — реестр компонент и операции
+    realtime/     — Socket.IO шлюз
+  assets/         — загрузка/выдача файлов
+  storage/        — MongoDB
+  shared/         — health, ошибки, middleware
+
+frontend/
+  src/
+    app/          — shell, роутинг, guards
+    pages/        — Login, Dashboard, Sessions, SessionTable, Profile, Party
+    api/          — REST-клиент
+    state/        — контекст сессии
+    realtime/     — Socket.IO клиент
+    tabletop/     — модель стола, рендер, контроллер, синхронизация
+    party/        — панели редактора партий (Hierarchy, Inspector, Assets)
+    canvas/       — задел под PixiJS-редактор сцен
+    components/   — UI-кит и layout
+
+packages/
+  shared/         — общие типы и Zod-схемы
+  scripts-sdk/    — SDK для скриптов (заглушка)
+
+infra/            — примеры .env
+tests/            — unit-тесты (Vitest)
+MongoFUCK/        — скрипт создания индексов MongoDB
+TASKS.md          — план по вертикалям MVP
+```
+
+В каждом backend-модуле и многих frontend-подпапках есть свой `README.md` с задачами и критериями готовности.
 
 ---
 
-## Вертикали (MVP, порядок)
-1) Auth (BE+FE)
-2) Parties (+Friends) (BE+FE)
-3) Scene/Objects (BE+FE)
-4) Realtime (BE+FE)
-5) ACL (BE+FE)
-6) Assets (BE+FE)
+## Основные маршруты (frontend)
 
-Детали — в `TASKS.md` и отдельных README модулей.
+| Путь | Назначение |
+|------|------------|
+| `/login`, `/register` | Авторизация |
+| `/dashboard` | Главная после входа |
+| `/sessions` | Список игровых сессий |
+| `/sessions/create`, `/sessions/join` | Создание и присоединение |
+| `/sessions/:id` | Виртуальный стол (Canvas) |
+| `/party/:id` | Редактор партии (в разработке) |
+| `/profile` | Профиль пользователя |
+
+---
+
+## Вертикали MVP (порядок)
+
+1. **Auth** — вход/регистрация, серверные сессии
+2. **Parties + Friends** — партии, друзья, инвайты
+3. **Scene/Objects** — сцены и объекты (данные)
+4. **Realtime** — синхронизация через Socket.IO и патчи стола
+5. **ACL** — команды, права, видимость объектов (базовый MVP)
+6. **Assets** — загрузка и привязка файлов
+
+Детали и статус — в `TASKS.md` и README модулей.
+
+---
+
+## Тесты
+
+```bash
+npm test
+```
+
+Покрытие: `TableController`, геометрия, история undo/redo, ACL, auth и др. См. `tests/README.md`.
 
 ---
 
 ## Частые проблемы
-- MongoDB не запущен — бэкенд не стартует. Проверьте `MONGODB_URI`, запустите Mongo.
-- CORS/Origins — проверьте `SOCKET_CORS_ORIGIN` и `VITE_*` в `.env`.
-- Windows PowerShell — выполняйте команды построчно, без `&&`.
-- Порты заняты — измените `PORT` (бэкенд) или порт Vite (фронтенд).
+
+- **MongoDB не запущен** — backend не стартует. Проверьте `MONGODB_URI` и что контейнер/сервис работает.
+- **CORS / cookies** — `SOCKET_CORS_ORIGIN` на backend и `VITE_*` на frontend должны указывать на тот же origin фронта; запросы идут с `credentials: true`.
+- **Windows PowerShell** — выполняйте команды построчно, без `&&`.
+- **Порты заняты** — измените `PORT` (backend) или порт Vite (frontend).
+- **Индексы** — при дубликатах email/username или медленных запросах убедитесь, что скрипт индексов применён к той же БД, что в `MONGODB_URI`.
 
 ---
 
 ## Лицензия
+
 MIT
-
-
