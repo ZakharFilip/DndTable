@@ -1,11 +1,11 @@
 /* Light motion — respects prefers-reduced-motion */
 
 .modal-overlay {
-  animation: fade-in var(--transition-fast) ease;
+  animation: ds-fade-in var(--ds-duration-normal, 220ms) var(--ds-ease-standard, ease);
 }
 
 .modal-content {
-  animation: scale-in var(--transition-fast) ease;
+  animation: ds-scale-in var(--ds-duration-normal, 220ms) var(--ds-ease-standard, ease);
 }
 
 .dropdown-panel {

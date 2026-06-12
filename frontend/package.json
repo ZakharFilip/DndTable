@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@dnd-table/shared": "0.1.0",
+    "@fontsource/ibm-plex-mono": "^5.2.7",
+    "@fontsource/sora": "^5.2.8",
+    "@fontsource/source-sans-3": "^5.2.9",
     "@radix-ui/react-context-menu": "^2.2.16",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

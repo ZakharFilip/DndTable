@@ -29,9 +29,9 @@ function statusLabel(loadStatus: LoadStatus, syncStatus: SyncStatus): string | n
 }
 
 function statusColor(loadStatus: LoadStatus, syncStatus: SyncStatus): string {
-  if (loadStatus === "error" || syncStatus === "error") return "var(--color-error)";
-  if (syncStatus === "conflict") return "var(--color-warning)";
-  return "var(--color-text-secondary)";
+  if (loadStatus === "error" || syncStatus === "error") return "var(--ds-color-error)";
+  if (syncStatus === "conflict") return "var(--ds-color-warning)";
+  return "var(--ds-color-text-secondary)";
 }
 
 export function SessionChrome({

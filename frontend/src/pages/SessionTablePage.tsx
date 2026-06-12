@@ -555,6 +555,10 @@ export default function SessionTablePage() {
       />
 
       <div className="st-viewport">
+        <div className="st-atmosphere-back" aria-hidden="true">
+          <div className="st-atmosphere__blobs" />
+          <div className="st-atmosphere__center-glow" />
+        </div>
       <div
         ref={containerRef}
         className="st-canvas-host"
@@ -661,6 +665,10 @@ export default function SessionTablePage() {
             />
           )}
       </div>
+        <div className="st-atmosphere-front" aria-hidden="true">
+          <div className="st-atmosphere__vignette" />
+          <div className="st-atmosphere__grain" />
+        </div>
       </div>
 
       <SessionChrome

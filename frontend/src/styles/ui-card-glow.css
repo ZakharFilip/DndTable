@@ -1,0 +1,13 @@
+.ui-card-glow {
+  transition:
+    box-shadow 0.2s var(--ds-ease-standard),
+    border-color 0.2s var(--ds-ease-standard);
+}
+
+.ui-card-glow:hover,
+:where(button, a):focus-visible > .ui-card-glow {
+  box-shadow:
+    var(--ds-shadow-elevated),
+    0 0 0 1px var(--ds-color-accent-muted),
+    0 0 32px rgba(184, 106, 78, 0.22);
+}

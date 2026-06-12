@@ -1,0 +1,279 @@
+/* Design system component primitives — used by preview and migrated UI kit */
+
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--ds-font-body);
+  font-weight: 500;
+  border-radius: var(--ds-radius-md);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    color var(--ds-duration-fast) var(--ds-ease-standard),
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    border-color var(--ds-duration-fast) var(--ds-ease-standard),
+    box-shadow var(--ds-duration-fast) var(--ds-ease-standard),
+    transform var(--ds-duration-fast) var(--ds-ease-standard),
+    opacity var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.ds-btn:focus-visible {
+  outline: var(--ds-focus-ring);
+  outline-offset: var(--ds-focus-offset);
+}
+
+.ds-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ds-btn--sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: var(--ds-text-body-sm-size);
+}
+
+.ds-btn--md {
+  height: 40px;
+  padding: 0 16px;
+  font-size: var(--ds-text-body-size);
+}
+
+.ds-btn--lg {
+  height: 44px;
+  padding: 0 20px;
+  font-size: var(--ds-text-body-size);
+}
+
+.ds-btn--primary {
+  background: var(--ds-color-accent);
+  color: #fff;
+  border-color: var(--ds-color-accent);
+}
+
+.ds-btn--primary:hover:not(:disabled) {
+  background: var(--ds-color-accent-hover);
+  border-color: var(--ds-color-accent-hover);
+  box-shadow: var(--ds-shadow-riso-accent);
+}
+
+.ds-btn--primary:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+
+.ds-btn--secondary {
+  background: var(--ds-color-surface);
+  color: var(--ds-color-text);
+  border-color: var(--ds-color-structure-muted);
+}
+
+.ds-btn--secondary:hover:not(:disabled) {
+  background: var(--ds-color-base-subtle);
+}
+
+.ds-btn--secondary:active:not(:disabled) {
+  box-shadow: var(--ds-shadow-inset);
+}
+
+.ds-btn--ghost {
+  background: transparent;
+  color: var(--ds-color-text-secondary);
+  border-color: transparent;
+}
+
+.ds-btn--ghost:hover:not(:disabled) {
+  background: var(--ds-color-base-subtle);
+  color: var(--ds-color-text);
+}
+
+.ds-btn--danger {
+  background: var(--ds-color-error);
+  color: #fff;
+  border-color: var(--ds-color-error);
+}
+
+.ds-btn--danger:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+.ds-card {
+  background: var(--ds-color-surface);
+  border: 1px solid var(--ds-color-structure-muted);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-card);
+}
+
+.ds-card--hover {
+  transition:
+    box-shadow var(--ds-duration-fast) var(--ds-ease-standard),
+    border-color var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.ds-card--hover:hover {
+  box-shadow: var(--ds-shadow-elevated);
+  border-color: var(--ds-color-structure);
+}
+
+.ds-card--interactive {
+  position: relative;
+  overflow: hidden;
+}
+
+.ds-card--interactive::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 2px;
+  background: var(--ds-color-accent-muted);
+  border-radius: 0 0 2px 0;
+}
+
+.ds-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--ds-color-overlay);
+  backdrop-filter: blur(6px);
+}
+
+.ds-modal-content {
+  width: 100%;
+  max-width: 28rem;
+  background: var(--ds-color-surface-raised);
+  border: 1px solid var(--ds-color-structure-muted);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-elevated);
+  overflow: hidden;
+}
+
+.ds-menu {
+  min-width: 180px;
+  padding: 4px;
+  background: var(--ds-color-surface-raised);
+  border: 1px solid var(--ds-color-structure-muted);
+  border-radius: var(--ds-radius-md);
+  box-shadow: var(--ds-shadow-elevated);
+}
+
+.ds-menu-item {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  font-family: var(--ds-font-body);
+  font-size: var(--ds-text-body-sm-size);
+  color: var(--ds-color-text);
+  background: transparent;
+  border: none;
+  border-radius: var(--ds-radius-sm);
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  transition: background-color var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.ds-menu-item:hover {
+  background: var(--ds-color-base-subtle);
+}
+
+.ds-menu-item:focus-visible {
+  background: var(--ds-color-focus-muted);
+  border-left-color: var(--ds-color-focus);
+  outline: none;
+}
+
+.ds-menu-item--danger {
+  color: var(--ds-color-error);
+}
+
+.ds-menu-item--danger:hover {
+  background: var(--ds-color-error-muted);
+}
+
+.ds-menu-separator {
+  margin: 4px 0;
+  height: 1px;
+  background: var(--ds-color-structure-muted);
+  border: none;
+}
+
+.ds-chrome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 16px;
+  background: var(--ds-color-chrome);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--ds-color-structure-muted);
+}
+
+.ds-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: var(--ds-radius-xl);
+  background: var(--ds-color-chrome);
+  border: 1px solid var(--ds-color-structure-muted);
+  box-shadow: var(--ds-shadow-elevated);
+  backdrop-filter: blur(12px);
+}
+
+.ds-tool-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--ds-radius-md);
+  background: transparent;
+  color: var(--ds-color-text-secondary);
+  cursor: pointer;
+  transition:
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    color var(--ds-duration-fast) var(--ds-ease-standard),
+    box-shadow var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+.ds-tool-btn:hover {
+  background: var(--ds-color-base-subtle);
+  color: var(--ds-color-text);
+}
+
+.ds-tool-btn--active {
+  background: var(--ds-color-accent-muted);
+  color: var(--ds-color-accent);
+  box-shadow: var(--ds-shadow-riso);
+}
+
+.ds-sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 288px;
+  background: var(--ds-color-chrome);
+  backdrop-filter: blur(12px);
+  border-left: 1px solid var(--ds-color-structure-muted);
+  box-shadow: var(--ds-shadow-elevated);
+}
+
+.ds-sidebar-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ds-color-structure-muted);
+}
+
+.ds-swatch {
+  width: 100%;
+  height: 48px;
+  border-radius: var(--ds-radius-sm);
+  border: 1px solid var(--ds-color-structure-muted);
+}

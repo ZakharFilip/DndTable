@@ -1,0 +1,141 @@
+/**
+ * Calm Sci-Fi Design System — isolated token namespace (--ds-*).
+ * Wired to app via index.css alias in Phase 2.
+ */
+
+@theme {
+  /* Base 60% */
+  --color-ds-base: #e9e5de;
+  --color-ds-base-subtle: #dfdbd4;
+
+  /* Structure 30% */
+  --color-ds-surface: #f3f1ec;
+  --color-ds-surface-raised: #faf9f6;
+  --color-ds-structure: #b4bfc9;
+  --color-ds-structure-muted: #d1d9e0;
+  --color-ds-text: #2a3140;
+  --color-ds-text-secondary: #5a6575;
+  --color-ds-text-muted: #8a939f;
+
+  /* Accent 10% */
+  --color-ds-accent: #b86a4e;
+  --color-ds-accent-hover: #9e583d;
+  --color-ds-accent-muted: #edd9cf;
+  --color-ds-focus: #6b8f9c;
+  --color-ds-focus-muted: #d4e4e8;
+
+  /* Semantic */
+  --color-ds-success: #5a8f72;
+  --color-ds-success-muted: #e0ede7;
+  --color-ds-warning: #b8925a;
+  --color-ds-warning-muted: #f0e8d8;
+  --color-ds-error: #a85a5a;
+  --color-ds-error-muted: #f0e0e0;
+
+  /* Radii */
+  --radius-ds-xs: 4px;
+  --radius-ds-sm: 6px;
+  --radius-ds-md: 10px;
+  --radius-ds-lg: 14px;
+  --radius-ds-xl: 18px;
+  --radius-ds-full: 9999px;
+
+  /* Shadows */
+  --shadow-ds-sm: 0 1px 2px rgba(42, 49, 64, 0.05);
+  --shadow-ds-card: 0 1px 0 rgba(42, 49, 64, 0.04), 0 4px 16px rgba(42, 49, 64, 0.06);
+  --shadow-ds-elevated: 0 8px 32px rgba(42, 49, 64, 0.1);
+  --shadow-ds-riso: 2px 2px 0 rgba(107, 143, 156, 0.22);
+  --shadow-ds-riso-accent: 2px 2px 0 rgba(184, 106, 78, 0.2);
+  --shadow-ds-inset: inset 0 1px 2px rgba(42, 49, 64, 0.06);
+}
+
+:root {
+  /* Base 60% */
+  --ds-color-base: #e9e5de;
+  --ds-color-base-subtle: #dfdbd4;
+
+  /* Structure 30% */
+  --ds-color-surface: #f3f1ec;
+  --ds-color-surface-raised: #faf9f6;
+  --ds-color-structure: #b4bfc9;
+  --ds-color-structure-muted: #d1d9e0;
+  --ds-color-chrome: rgba(243, 241, 236, 0.88);
+  --ds-color-text: #2a3140;
+  --ds-color-text-secondary: #5a6575;
+  --ds-color-text-muted: #8a939f;
+
+  /* Accent 10% */
+  --ds-color-accent: #b86a4e;
+  --ds-color-accent-hover: #9e583d;
+  --ds-color-accent-muted: #edd9cf;
+  --ds-color-focus: #6b8f9c;
+  --ds-color-focus-muted: #d4e4e8;
+
+  /* Semantic */
+  --ds-color-success: #5a8f72;
+  --ds-color-success-muted: #e0ede7;
+  --ds-color-warning: #b8925a;
+  --ds-color-warning-muted: #f0e8d8;
+  --ds-color-error: #a85a5a;
+  --ds-color-error-muted: #f0e0e0;
+
+  /* Overlay */
+  --ds-color-overlay: rgba(42, 49, 64, 0.45);
+
+  /* Typography scale */
+  --ds-font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
+  --ds-font-body: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  --ds-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --ds-text-display-size: 1.75rem;
+  --ds-text-display-weight: 600;
+  --ds-text-display-leading: 1.2;
+
+  --ds-text-title-size: 1.25rem;
+  --ds-text-title-weight: 600;
+  --ds-text-title-leading: 1.3;
+
+  --ds-text-body-size: 0.9375rem;
+  --ds-text-body-weight: 400;
+  --ds-text-body-leading: 1.5;
+
+  --ds-text-body-sm-size: 0.875rem;
+  --ds-text-body-sm-weight: 400;
+  --ds-text-body-sm-leading: 1.45;
+
+  --ds-text-caption-size: 0.75rem;
+  --ds-text-caption-weight: 500;
+  --ds-text-caption-leading: 1.4;
+
+  --ds-text-label-size: 0.6875rem;
+  --ds-text-label-weight: 600;
+  --ds-text-label-leading: 1.3;
+  --ds-text-label-tracking: 0.06em;
+
+  /* Radii */
+  --ds-radius-xs: 4px;
+  --ds-radius-sm: 6px;
+  --ds-radius-md: 10px;
+  --ds-radius-lg: 14px;
+  --ds-radius-xl: 18px;
+  --ds-radius-full: 9999px;
+
+  /* Shadows */
+  --ds-shadow-none: none;
+  --ds-shadow-sm: 0 1px 2px rgba(42, 49, 64, 0.05);
+  --ds-shadow-card: 0 1px 0 rgba(42, 49, 64, 0.04), 0 4px 16px rgba(42, 49, 64, 0.06);
+  --ds-shadow-elevated: 0 8px 32px rgba(42, 49, 64, 0.1);
+  --ds-shadow-riso: 2px 2px 0 rgba(107, 143, 156, 0.22);
+  --ds-shadow-riso-accent: 2px 2px 0 rgba(184, 106, 78, 0.2);
+  --ds-shadow-inset: inset 0 1px 2px rgba(42, 49, 64, 0.06);
+
+  /* Motion */
+  --ds-duration-fast: 150ms;
+  --ds-duration-normal: 220ms;
+  --ds-duration-slow: 320ms;
+  --ds-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Focus */
+  --ds-focus-ring: 2px solid var(--ds-color-focus);
+  --ds-focus-offset: 2px;
+}

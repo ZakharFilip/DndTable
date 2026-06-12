@@ -1,0 +1,19 @@
+@import "./tokens.css";
+@import "./typography.css";
+@import "./motion.css";
+@import "./grain.css";
+@import "./components.css";
+
+/* Scoped theme for preview / ds-* pages */
+.ds-theme {
+  font-family: var(--ds-font-body);
+  font-size: var(--ds-text-body-size);
+  line-height: var(--ds-text-body-leading);
+  color: var(--ds-color-text);
+  background-color: var(--ds-color-base);
+}
+
+.ds-theme :focus-visible {
+  outline: var(--ds-focus-ring);
+  outline-offset: var(--ds-focus-offset);
+}

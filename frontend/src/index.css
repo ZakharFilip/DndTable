@@ -1,54 +1,87 @@
 @import "tailwindcss";
+@import "./styles/design-system/tokens.css";
+@import "./styles/design-system/typography.css";
+@import "./styles/design-system/motion.css";
+@import "./styles/design-system/grain.css";
 @import "./styles/motion.css";
+@import "./styles/ui-zoom.css";
+@import "./styles/ui-card-glow.css";
 @source "./**/*.{ts,tsx}";
 
 @theme {
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-primary-muted: #eff6ff;
-  --color-background: #f8fafc;
-  --color-surface: #ffffff;
-  --color-border: #e2e8f0;
-  --color-text: #0f172a;
-  --color-text-secondary: #64748b;
-  --color-text-muted: #94a3b8;
-  --color-error: #dc2626;
-  --color-error-muted: #fef2f2;
-  --color-success: #059669;
-  --color-success-muted: #ecfdf5;
-  --color-warning: #d97706;
-  --color-warning-muted: #fffbeb;
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
-  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-elevated: 0 4px 24px rgba(15, 23, 42, 0.1);
+  /* Legacy aliases → Calm Sci-Fi tokens */
+  --color-primary: var(--ds-color-accent);
+  --color-primary-hover: var(--ds-color-accent-hover);
+  --color-primary-muted: var(--ds-color-accent-muted);
+  --color-background: var(--ds-color-base);
+  --color-surface: var(--ds-color-surface);
+  --color-border: var(--ds-color-structure-muted);
+  --color-text: var(--ds-color-text);
+  --color-text-secondary: var(--ds-color-text-secondary);
+  --color-text-muted: var(--ds-color-text-muted);
+  --color-error: var(--ds-color-error);
+  --color-error-muted: var(--ds-color-error-muted);
+  --color-success: var(--ds-color-success);
+  --color-success-muted: var(--ds-color-success-muted);
+  --color-warning: var(--ds-color-warning);
+  --color-warning-muted: var(--ds-color-warning-muted);
+  --radius-sm: var(--ds-radius-sm);
+  --radius-md: var(--ds-radius-md);
+  --radius-lg: var(--ds-radius-lg);
+  --radius-xl: var(--ds-radius-xl);
+  --shadow-card: var(--ds-shadow-card);
+  --shadow-elevated: var(--ds-shadow-elevated);
+
+  --font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Direct ds utilities (also in tokens.css) */
+  --color-ds-base: #e9e5de;
+  --color-ds-base-subtle: #dfdbd4;
+  --color-ds-surface: #f3f1ec;
+  --color-ds-surface-raised: #faf9f6;
+  --color-ds-structure: #b4bfc9;
+  --color-ds-structure-muted: #d1d9e0;
+  --color-ds-text: #2a3140;
+  --color-ds-text-secondary: #5a6575;
+  --color-ds-text-muted: #8a939f;
+  --color-ds-accent: #b86a4e;
+  --color-ds-accent-hover: #9e583d;
+  --color-ds-accent-muted: #edd9cf;
+  --color-ds-focus: #6b8f9c;
+  --color-ds-focus-muted: #d4e4e8;
+  --color-ds-success: #5a8f72;
+  --color-ds-success-muted: #e0ede7;
+  --color-ds-warning: #b8925a;
+  --color-ds-warning-muted: #f0e8d8;
+  --color-ds-error: #a85a5a;
+  --color-ds-error-muted: #f0e0e0;
 }
 
 :root {
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-primary-muted: #eff6ff;
-  --color-background: #f8fafc;
-  --color-surface: #ffffff;
-  --color-border: #e2e8f0;
-  --color-text: #0f172a;
-  --color-text-secondary: #64748b;
-  --color-text-muted: #94a3b8;
-  --color-error: #dc2626;
-  --color-error-muted: #fef2f2;
-  --color-success: #059669;
-  --color-success-muted: #ecfdf5;
-  --color-warning: #d97706;
-  --color-warning-muted: #fffbeb;
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
-  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-elevated: 0 4px 24px rgba(15, 23, 42, 0.1);
-  --transition-fast: 150ms ease;
+  --color-primary: var(--ds-color-accent);
+  --color-primary-hover: var(--ds-color-accent-hover);
+  --color-primary-muted: var(--ds-color-accent-muted);
+  --color-background: var(--ds-color-base);
+  --color-surface: var(--ds-color-surface);
+  --color-border: var(--ds-color-structure-muted);
+  --color-text: var(--ds-color-text);
+  --color-text-secondary: var(--ds-color-text-secondary);
+  --color-text-muted: var(--ds-color-text-muted);
+  --color-error: var(--ds-color-error);
+  --color-error-muted: var(--ds-color-error-muted);
+  --color-success: var(--ds-color-success);
+  --color-success-muted: var(--ds-color-success-muted);
+  --color-warning: var(--ds-color-warning);
+  --color-warning-muted: var(--ds-color-warning-muted);
+  --radius-sm: var(--ds-radius-sm);
+  --radius-md: var(--ds-radius-md);
+  --radius-lg: var(--ds-radius-lg);
+  --radius-xl: var(--ds-radius-xl);
+  --shadow-card: var(--ds-shadow-card);
+  --shadow-elevated: var(--ds-shadow-elevated);
+  --transition-fast: var(--ds-duration-fast) ease;
 }
 
 html,
@@ -60,7 +93,9 @@ body {
   box-sizing: border-box;
   background-color: var(--color-background);
   color: var(--color-text);
-  font-family: ui-sans-serif, system-ui, sans-serif, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--ds-font-body);
+  font-size: var(--ds-text-body-size);
+  line-height: var(--ds-text-body-leading);
 }
 
 #root {
@@ -69,4 +104,25 @@ body {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+#root.ds-app-grain {
+  position: relative;
+}
+
+#root.ds-app-grain::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 128px 128px;
+}
+
+:focus-visible {
+  outline: var(--ds-focus-ring);
+  outline-offset: var(--ds-focus-offset);
 }

@@ -127,7 +127,10 @@ export function TeamSettingsPanel({
               <path d="M15 18l-6-6 6-6" />
             </svg>
           </button>
-          <h2 className="text-base font-semibold flex-1 text-center">Команды</h2>
+          <div className="flex-1 text-center">
+            <span className="st-panel-header-label">Сессия</span>
+            <h2 className="st-panel-header-title">Команды</h2>
+          </div>
           <div className="flex items-center gap-2">
             {canManage && (
               <button

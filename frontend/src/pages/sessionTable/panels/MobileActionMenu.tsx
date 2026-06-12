@@ -52,7 +52,7 @@ export function MobileActionMenu({
   return (
     <div
       ref={ref}
-      className="st-mobile-action-menu"
+      className="fixed z-[70] min-w-[180px] rounded-[var(--ds-radius-md)] border border-border bg-[var(--ds-color-surface-raised)] p-1 shadow-elevated ds-scale-in"
       style={{ left, top }}
       role="menu"
     >

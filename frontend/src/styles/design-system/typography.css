@@ -1,0 +1,69 @@
+@import "@fontsource/sora/400.css";
+@import "@fontsource/sora/600.css";
+@import "@fontsource/source-sans-3/400.css";
+@import "@fontsource/source-sans-3/500.css";
+@import "@fontsource/source-sans-3/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+
+.ds-font-body {
+  font-family: var(--ds-font-body);
+}
+
+.ds-font-display {
+  font-family: var(--ds-font-display);
+}
+
+.ds-font-mono {
+  font-family: var(--ds-font-mono);
+}
+
+.ds-text-display {
+  font-family: var(--ds-font-display);
+  font-size: var(--ds-text-display-size);
+  font-weight: var(--ds-text-display-weight);
+  line-height: var(--ds-text-display-leading);
+  color: var(--ds-color-text);
+  letter-spacing: -0.02em;
+}
+
+.ds-text-title {
+  font-family: var(--ds-font-display);
+  font-size: var(--ds-text-title-size);
+  font-weight: var(--ds-text-title-weight);
+  line-height: var(--ds-text-title-leading);
+  color: var(--ds-color-text);
+}
+
+.ds-text-body {
+  font-family: var(--ds-font-body);
+  font-size: var(--ds-text-body-size);
+  font-weight: var(--ds-text-body-weight);
+  line-height: var(--ds-text-body-leading);
+  color: var(--ds-color-text);
+}
+
+.ds-text-body-sm {
+  font-family: var(--ds-font-body);
+  font-size: var(--ds-text-body-sm-size);
+  font-weight: var(--ds-text-body-sm-weight);
+  line-height: var(--ds-text-body-sm-leading);
+  color: var(--ds-color-text-secondary);
+}
+
+.ds-text-caption {
+  font-family: var(--ds-font-body);
+  font-size: var(--ds-text-caption-size);
+  font-weight: var(--ds-text-caption-weight);
+  line-height: var(--ds-text-caption-leading);
+  color: var(--ds-color-text-secondary);
+}
+
+.ds-text-label {
+  font-family: var(--ds-font-body);
+  font-size: var(--ds-text-label-size);
+  font-weight: var(--ds-text-label-weight);
+  line-height: var(--ds-text-label-leading);
+  letter-spacing: var(--ds-text-label-tracking);
+  text-transform: uppercase;
+  color: var(--ds-color-text-muted);
+}

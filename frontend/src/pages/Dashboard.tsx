@@ -45,10 +45,11 @@ export default function Dashboard() {
             key={item.path}
             type="button"
             onClick={() => navigate(item.path)}
-            className="text-left w-full"
+            className="text-left w-full rounded-[var(--ds-radius-lg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ds-color-focus)]"
           >
             <Card
               hover
+              glow
               padding="lg"
               className="min-h-[88px] transition-transform duration-150 hover:-translate-y-0.5"
             >

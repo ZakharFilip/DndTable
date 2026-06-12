@@ -1,0 +1,81 @@
+.ds-fade-in {
+  animation: ds-fade-in var(--ds-duration-normal) var(--ds-ease-standard);
+}
+
+.ds-scale-in {
+  animation: ds-scale-in var(--ds-duration-normal) var(--ds-ease-standard);
+}
+
+.ds-slide-up {
+  animation: ds-slide-up var(--ds-duration-slow) var(--ds-ease-standard);
+}
+
+.ds-riso-pulse {
+  animation: ds-riso-pulse 400ms var(--ds-ease-standard) forwards;
+}
+
+@keyframes ds-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ds-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes ds-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ds-riso-pulse {
+  from {
+    transform: scale(0.5);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+}
+
+.ds-transition {
+  transition:
+    color var(--ds-duration-fast) var(--ds-ease-standard),
+    background-color var(--ds-duration-fast) var(--ds-ease-standard),
+    border-color var(--ds-duration-fast) var(--ds-ease-standard),
+    box-shadow var(--ds-duration-fast) var(--ds-ease-standard),
+    transform var(--ds-duration-fast) var(--ds-ease-standard),
+    opacity var(--ds-duration-fast) var(--ds-ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-fade-in,
+  .ds-scale-in,
+  .ds-slide-up,
+  .ds-riso-pulse {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .ds-transition {
+    transition-duration: 0.01ms !important;
+  }
+}

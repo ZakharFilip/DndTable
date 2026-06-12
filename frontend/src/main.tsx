@@ -4,6 +4,8 @@ import './index.css'
 import App from './App'
 import { SessionProvider } from './state/session'
 
+document.getElementById('root')?.classList.add('ds-app-grain');
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <SessionProvider>

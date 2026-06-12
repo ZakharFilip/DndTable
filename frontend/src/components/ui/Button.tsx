@@ -14,18 +14,19 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClass: Record<Variant, string> = {
   primary:
-    "bg-primary text-white border border-primary hover:bg-primary-hover disabled:opacity-50",
+    "bg-primary text-white border border-primary hover:bg-primary-hover hover:shadow-[var(--ds-shadow-riso-accent)] active:translate-x-px active:translate-y-px active:shadow-none disabled:opacity-45",
   secondary:
-    "bg-surface text-text border border-border hover:bg-background disabled:opacity-50",
-  ghost: "bg-transparent text-text-secondary border border-transparent hover:bg-background hover:text-text",
+    "bg-surface text-text border border-border hover:bg-[var(--ds-color-base-subtle)] active:shadow-[var(--ds-shadow-inset)] disabled:opacity-45",
+  ghost:
+    "bg-transparent text-text-secondary border border-transparent hover:bg-[var(--ds-color-base-subtle)] hover:text-text active:shadow-[var(--ds-shadow-inset)] disabled:text-text-muted",
   danger:
-    "bg-error text-white border border-error hover:opacity-90 disabled:opacity-50",
+    "bg-error text-white border border-error hover:brightness-[0.92] active:shadow-[var(--ds-shadow-inset)] disabled:opacity-45",
 };
 
 const sizeClass: Record<Size, string> = {
-  sm: "h-8 px-3 text-sm rounded-md",
-  md: "h-10 px-4 text-sm rounded-lg",
-  lg: "h-11 px-5 text-base rounded-lg",
+  sm: "h-8 px-3 text-sm rounded-[var(--ds-radius-sm)]",
+  md: "h-10 px-4 text-[length:var(--ds-text-body-size)] rounded-[var(--ds-radius-md)]",
+  lg: "h-11 px-5 text-[length:var(--ds-text-body-size)] rounded-[var(--ds-radius-md)]",
 };
 
 export function Button({
@@ -42,8 +43,9 @@ export function Button({
       type="button"
       disabled={disabled || loading}
       className={cn(
-        "inline-flex items-center justify-center gap-2 font-medium transition-colors duration-150",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+        "inline-flex items-center justify-center gap-2 font-medium font-body",
+        "transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150 ease-[var(--ds-ease-standard)]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ds-color-focus)] focus-visible:ring-offset-2",
         variantClass[variant],
         sizeClass[size],
         className

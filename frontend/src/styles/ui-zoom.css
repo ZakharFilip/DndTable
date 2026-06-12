@@ -1,0 +1,13 @@
+/* Uniform ~135% scale for auth + app menu pages (like browser zoom). */
+.ui-zoom {
+  zoom: 1.35;
+}
+
+@supports not (zoom: 1) {
+  .ui-zoom {
+    transform: scale(1.35);
+    transform-origin: top center;
+    width: calc(100% / 1.35);
+    min-height: calc(100vh / 1.35);
+  }
+}

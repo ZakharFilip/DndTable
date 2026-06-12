@@ -18,28 +18,37 @@ export function AppShell() {
   const showMenuLink = location.pathname !== "/dashboard";
 
   return (
-    <div className="min-h-screen bg-background text-text">
-      <header className="sticky top-0 z-40 flex items-center justify-between gap-4 border-b border-border bg-surface/95 backdrop-blur-sm px-4 py-3 shadow-card">
+    <div className="ui-zoom min-h-screen bg-background text-text">
+      <header
+        className="sticky top-0 z-40 flex items-center justify-between gap-4 px-4 py-0 min-h-[52px] shadow-card"
+        style={{
+          background: "var(--ds-color-chrome)",
+          backdropFilter: "blur(12px)",
+          borderBottom: "1px solid var(--ds-color-structure-muted)",
+        }}
+      >
         <div className="flex items-center gap-3 min-w-0">
           {showMenuLink && (
             <Link
               to="/dashboard"
-              className="text-sm font-medium text-primary hover:text-primary-hover shrink-0"
+              className="text-sm font-medium text-primary hover:text-primary-hover shrink-0 transition-colors duration-150"
             >
               ← Меню
             </Link>
           )}
-          <h1 className="text-lg font-semibold truncate text-text">{title}</h1>
+          <h1 className="font-display text-lg font-semibold truncate text-text tracking-tight">
+            {title}
+          </h1>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <MailboxPanel />
           <Link
             to="/profile"
-            className="flex items-center gap-2 text-sm text-text-secondary hover:text-text"
+            className="flex items-center gap-2 text-sm text-text-secondary hover:text-text transition-colors duration-150 rounded-[var(--ds-radius-md)] px-2 py-1 hover:bg-[var(--ds-color-base-subtle)]"
             title="Профиль"
           >
             <Avatar filename={user?.avatar} size={28} />
-            <span className="hidden sm:inline max-w-[120px] truncate">
+            <span className="hidden sm:inline max-w-[120px] truncate font-body">
               {user?.username ?? "Профиль"}
             </span>
           </Link>

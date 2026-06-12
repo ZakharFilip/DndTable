@@ -6,6 +6,31 @@ import { ShapePainter } from "../appearance/ShapePainter";
 import type { ShapeVariantId } from "../shapes";
 import { ShapeVariantRegistry } from "../shapes";
 
+/** Contour-only glow — shadow on stroke, no fill over the object. */
+function drawSelectionGlow(
+  ctx: CanvasRenderingContext2D,
+  aabb: WorldRect,
+  scale: number,
+) {
+  const x = aabb.left;
+  const y = aabb.top;
+  const w = aabb.right - aabb.left;
+  const h = aabb.bottom - aabb.top;
+
+  ctx.save();
+  ctx.fillStyle = "transparent";
+  ctx.strokeStyle = "rgba(107, 143, 156, 0.01)";
+  ctx.lineWidth = 1 / scale;
+  ctx.shadowColor = "rgba(107, 143, 156, 0.5)";
+  ctx.shadowBlur = 20 / scale;
+  ctx.strokeRect(x, y, w, h);
+
+  ctx.shadowColor = "rgba(184, 106, 78, 0.3)";
+  ctx.shadowBlur = 12 / scale;
+  ctx.strokeRect(x, y, w, h);
+  ctx.restore();
+}
+
 export class CanvasRenderer {
   private imageCache: Map<string, HTMLImageElement>;
   private onImageLoad: () => void;
@@ -69,7 +94,7 @@ export class CanvasRenderer {
     // clear
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = "white";
+    ctx.fillStyle = "rgba(223, 219, 212, 0.88)";
     ctx.fillRect(0, 0, width, height);
     ctx.restore();
 
@@ -204,8 +229,12 @@ export class CanvasRenderer {
         .map((k) => objects.find((o) => o.key === k))
         .filter(Boolean) as TableObjectState[];
       if (selectedObjects.length > 0) {
+        for (const o of selectedObjects) {
+          drawSelectionGlow(ctx, getObjectAabb(o), scale);
+        }
+
         ctx.save();
-        ctx.strokeStyle = "rgba(79,70,229,0.9)";
+        ctx.strokeStyle = "rgba(107, 143, 156, 0.85)";
         ctx.lineWidth = 2 / scale;
         ctx.setLineDash([4 / scale, 3 / scale]);
         if (selectedObjects.length === 1) {

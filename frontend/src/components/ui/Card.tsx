@@ -5,6 +5,8 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   padding?: "none" | "sm" | "md" | "lg";
   hover?: boolean;
+  interactive?: boolean;
+  glow?: boolean;
 }
 
 const paddingClass = {
@@ -18,15 +20,21 @@ export function Card({
   children,
   padding = "md",
   hover = false,
+  interactive = false,
+  glow = false,
   className,
   ...props
 }: CardProps) {
   return (
     <div
       className={cn(
-        "bg-surface border border-border rounded-xl shadow-card",
+        "relative overflow-hidden bg-surface border border-border rounded-[var(--ds-radius-lg)] shadow-card",
         paddingClass[padding],
-        hover && "transition-shadow duration-150 hover:shadow-elevated",
+        glow && "ui-card-glow",
+        hover &&
+          "transition-[box-shadow,border-color] duration-150 ease-[var(--ds-ease-standard)] hover:shadow-elevated hover:border-[var(--ds-color-structure)]",
+        interactive &&
+          "before:absolute before:top-0 before:left-0 before:h-0.5 before:w-[40%] before:rounded-br-sm before:bg-primary-muted before:content-['']",
         className
       )}
       {...props}

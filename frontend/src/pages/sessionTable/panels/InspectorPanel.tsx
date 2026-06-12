@@ -112,8 +112,9 @@ export function InspectorPanel({
             <path d="M9 18l6-6-6-6" />
           </svg>
         </button>
-        <div className="w-full text-center text-xs font-medium text-text-secondary">
-          {showLayers ? "Слои" : "Свойства"}
+        <div className="w-full">
+          <span className="st-panel-header-label">{showLayers ? "Панель" : "Объект"}</span>
+          <div className="st-panel-header-title">{showLayers ? "Слои" : "Свойства"}</div>
         </div>
       </div>
       <div className="flex-1 overflow-auto p-3">
