@@ -37,7 +37,7 @@ cd DndTable
 - **Backend:** скопируйте `infra/backend.env.example` → `backend/.env`
   - при необходимости измените `MONGODB_URI`, `SOCKET_CORS_ORIGIN`, `SESSION_SECRET`, `ASSETS_DIR`
 - **Frontend:** скопируйте `infra/frontend.env.example` → `frontend/.env`
-  - при необходимости измените `VITE_API_URL`, `VITE_SOCKET_URL`
+  - при необходимости измените `VITE_API_BASE`, `VITE_SOCKET_URL`
 
 ### 3. Зависимости
 
@@ -146,6 +146,14 @@ GET http://localhost:4000/health
 
 ---
 
+## Деплой
+
+Пошаговая инструкция для VPS, Docker и PaaS: **[DEPLOY.md](DEPLOY.md)**.
+
+Кратко: `npm run build` → `NODE_ENV=production npm start` (backend). Фронт отдаёт Nginx (`SERVE_STATIC=false`) или сам backend (`SERVE_STATIC=true` для Docker/PaaS). Нужны MongoDB, HTTPS и переменные из `infra/*.production.example`.
+
+---
+
 ## Структура репозитория
 
 ```
@@ -180,9 +188,13 @@ packages/
   shared/         — общие типы и Zod-схемы
   scripts-sdk/    — SDK для скриптов (заглушка)
 
-infra/            — примеры .env
+infra/            — примеры .env, nginx
 tests/            — unit-тесты (Vitest)
+scripts/          — вспомогательные скрипты (индексы MongoDB)
 MongoFUCK/        — скрипт создания индексов MongoDB
+Dockerfile        — образ для production
+docker-compose.yml — app + mongo для локального/серверного Docker
+DEPLOY.md         — инструкция по выкладке на хостинг
 TASKS.md          — план по вертикалям MVP
 ```
 
@@ -201,6 +213,7 @@ TASKS.md          — план по вертикалям MVP
 | `/sessions/:id` | Виртуальный стол (Canvas) |
 | `/party/:id` | Редактор партии (в разработке) |
 | `/profile` | Профиль пользователя |
+| `/privacy` | Политика конфиденциальности |
 
 ---
 

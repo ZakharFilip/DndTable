@@ -1,10 +1,9 @@
-import dotenv from "dotenv";
-dotenv.config();
-
 import 'dotenv/config';
-import 'express-async-errors'; // ✅ ДОБАВЛЕНО - должен быть первым!
+import 'express-async-errors';
 import express from 'express';
 import http from 'http';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import cors from 'cors';
 import { Server as SocketIOServer } from 'socket.io';
 import mongoose from 'mongoose';
@@ -13,8 +12,8 @@ import MongoStore from "connect-mongo";
 
 import { registerRealtime } from './modules/realtime/gateway.js';
 import { healthRouter } from './shared/health.js';
-import { errorHandler } from './shared/errorHandler.js'; // ✅ ДОБАВЛЕНО
-import authRouter from './modules/auth/auth.router';// ✅ ДОБАВЛЕНО
+import { errorHandler } from './shared/errorHandler.js';
+import authRouter from './modules/auth/auth.router';
 import gamesessionsRouter from './modules/gamesessions/gamesessions.router';
 import accessRouter from './modules/access/access.router.js';
 import usersRouter from './modules/users/users.router.js';
@@ -25,23 +24,59 @@ import { FriendCodeGenerator } from './modules/users/FriendCodeGenerator.js';
 import { setIoInstance } from "./shared/io.js";
 import { AVATARS_DIR } from "./modules/users/avatarUpload.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const PORT = Number(process.env.PORT || 4000);
 const SOCKET_CORS_ORIGIN = process.env.SOCKET_CORS_ORIGIN || 'http://localhost:5173';
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/dndtable';
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev_session_secret_change_me";
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "dnd.sid";
-const SESSION_MAX_AGE_MS = Number(process.env.SESSION_MAX_AGE_MS || 1000 * 60 * 60 * 24 * 7); // 7 days
+const SESSION_MAX_AGE_MS = Number(process.env.SESSION_MAX_AGE_MS || 1000 * 60 * 60 * 24 * 7);
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const TRUST_PROXY = process.env.TRUST_PROXY === "1" || IS_PRODUCTION;
+const SERVE_STATIC = process.env.SERVE_STATIC === "true";
+
+const REPO_ROOT = path.resolve(__dirname, "../..");
+const STATIC_DIR = process.env.STATIC_DIR || path.join(REPO_ROOT, "frontend", "dist");
+
+const API_PATH_PREFIXES = ["/auth", "/api", "/health", "/avatars", "/socket.io"];
+
+function maskMongoUri(uri: string): string {
+  try {
+    const parsed = new URL(uri);
+    if (parsed.password) parsed.password = "***";
+    if (parsed.username) parsed.username = "***";
+    return parsed.toString();
+  } catch {
+    return "[mongodb]";
+  }
+}
+
+function registerStaticFrontend(app: express.Application) {
+  app.use(express.static(STATIC_DIR, { index: false }));
+
+  app.get("*", (req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    if (API_PATH_PREFIXES.some((prefix) => req.path.startsWith(prefix))) return next();
+    res.sendFile(path.join(STATIC_DIR, "index.html"), (err) => {
+      if (err) next(err);
+    });
+  });
+}
 
 async function main() {
   await mongoose.connect(MONGODB_URI);
-  console.log('✅ Connected to MongoDB'); // ✅ УЛУЧШЕНО: добавлено подтверждение
+  console.log("Connected to MongoDB");
   await FriendCodeGenerator.backfillMissing();
 
   const app = express();
-  
-  // Middleware (улучшенный порядок)
+
+  if (TRUST_PROXY) {
+    app.set("trust proxy", 1);
+  }
+
   app.use(cors({ origin: SOCKET_CORS_ORIGIN, credentials: true }));
-  app.use(express.json()); // ✅ ЛУЧШЕ чем bodyParser для Express 4.16+
+  app.use(express.json());
   app.use("/avatars", express.static(AVATARS_DIR));
 
   const sessionMiddleware = session({
@@ -58,26 +93,25 @@ async function main() {
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      secure: IS_PRODUCTION,
       maxAge: SESSION_MAX_AGE_MS,
     },
   });
   app.use(sessionMiddleware);
-  
-  // ✅ ДОБАВЛЕНО: Auth routes
-  app.use('/auth', authRouter);
 
+  app.use('/auth', authRouter);
   app.use('/api/users', usersRouter);
   app.use('/api/friends', friendsRouter);
   app.use('/api/inbox', inboxRouter);
   app.use('/api/sessions', gamesessionsRouter);
   app.use('/api/sessions/:id/invites', sessionInvitesRouter);
   app.use('/api/sessions/:id/access', accessRouter);
-
-  // Health check (оставлен ваш роутер)
   app.use('/health', healthRouter);
 
-  // ✅ ДОБАВЛЕНО: Error handler (должен быть ДО создания httpServer)
+  if (SERVE_STATIC) {
+    registerStaticFrontend(app);
+  }
+
   app.use(errorHandler);
 
   const httpServer = http.createServer(app);
@@ -89,13 +123,16 @@ async function main() {
   registerRealtime(io, sessionMiddleware);
 
   httpServer.listen(PORT, () => {
-    console.log(`🎮 DnD Backend listening on http://localhost:${PORT}`); // ✅ УЛУЧШЕНО
-    console.log(`⚡ Socket.IO ready for connections`);
-    console.log(`📊 MongoDB: ${MONGODB_URI}`);
+    console.log(`DnD Backend listening on port ${PORT}`);
+    console.log("Socket.IO ready for connections");
+    console.log(`MongoDB: ${IS_PRODUCTION ? maskMongoUri(MONGODB_URI) : MONGODB_URI}`);
+    if (SERVE_STATIC) {
+      console.log(`Serving frontend static files from ${STATIC_DIR}`);
+    }
   });
 }
 
 main().catch((err) => {
-  console.error('💥 Fatal error starting server:', err); // ✅ УЛУЧШЕНО
+  console.error('Fatal error starting server:', err);
   process.exit(1);
 });

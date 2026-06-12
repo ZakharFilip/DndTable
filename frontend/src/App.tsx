@@ -10,6 +10,7 @@ import SessionTablePage from './pages/SessionTablePage';
 import GameRecordsPage from './pages/GameRecordsPage';
 import ProfilePage from './pages/ProfilePage';
 import DesignSystemPreview from './pages/DesignSystemPreview';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import { RedirectIfAuth, RequireAuth } from "./app/RouteGuards";
 import { AppShell } from "./app/AppShell";
 import './App.css';
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/register" element={<RedirectIfAuth><RegisterPage /></RedirectIfAuth>} />
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<RedirectIfAuth><Login /></RedirectIfAuth>} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/design-preview" element={<DesignSystemPreview />} />
         <Route element={<RequireAuth><AppShell /></RequireAuth>}>
           <Route path="/dashboard" element={<Dashboard />} />

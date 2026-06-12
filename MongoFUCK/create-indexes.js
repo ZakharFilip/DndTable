@@ -1,6 +1,6 @@
 // create-indexes.js
 
-db = db.getSiblingDB("dndTableBD");
+db = db.getSiblingDB("dndtable");
 
 db.users.createIndex({ email: 1 }, { unique: true });
 db.users.createIndex({ username: 1 }, { unique: true });

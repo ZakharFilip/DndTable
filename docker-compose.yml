@@ -1,0 +1,40 @@
+services:
+  mongo:
+    image: mongo:6
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-}
+        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-}
+    restart: unless-stopped
+    ports:
+      - "${PORT:-4000}:4000"
+    env_file:
+      - backend/.env
+    environment:
+      NODE_ENV: production
+      SERVE_STATIC: "true"
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/dndtable}
+      SOCKET_CORS_ORIGIN: ${SOCKET_CORS_ORIGIN:-http://localhost:4000}
+    volumes:
+      - avatar_data:/app/backend/uploads/avatars
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+volumes:
+  mongo_data:
+  avatar_data:

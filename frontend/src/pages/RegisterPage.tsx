@@ -3,13 +3,14 @@ import { Link } from "react-router-dom";
 import { register } from "../api/auth";
 import { useSession } from "../state/session";
 import { AuthLayout } from "../components/layout/AuthLayout";
-import { Alert, Button, Input, Label } from "../components/ui";
+import { Alert, Button, Checkbox, Input, Label } from "../components/ui";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -28,12 +29,15 @@ export default function RegisterPage() {
     v.length < 8 ? "Пароль должен содержать не менее 8 символов" : null;
   const validateConfirm = (v: string) =>
     v !== password ? "Пароли не совпадают" : null;
+  const validatePrivacy = (accepted: boolean) =>
+    accepted ? null : "Необходимо дать согласие на обработку персональных данных";
 
   const validateAll = () => ({
     email: validateEmail(email),
     username: validateUsername(username),
     password: validatePassword(password),
     confirm: validateConfirm(confirm),
+    privacy: validatePrivacy(privacyAccepted),
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -150,7 +154,32 @@ export default function RegisterPage() {
             />
           </div>
           {serverError && <Alert variant="error">{serverError}</Alert>}
-          <Button type="submit" className="w-full" loading={loading}>
+          <Checkbox
+            id="reg-privacy"
+            checked={privacyAccepted}
+            onChange={(e) => {
+              setPrivacyAccepted(e.target.checked);
+              if (e.target.checked) {
+                setErrors((prev) => ({ ...prev, privacy: null }));
+              }
+            }}
+            error={errors.privacy}
+            label={
+              <Link
+                to="/privacy"
+                className="text-primary hover:text-primary-hover font-medium underline-offset-2 hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Согласие на обработку персональных данных
+              </Link>
+            }
+          />
+          <Button
+            type="submit"
+            className="w-full"
+            loading={loading}
+            disabled={!privacyAccepted}
+          >
             Зарегистрироваться
           </Button>
         </form>

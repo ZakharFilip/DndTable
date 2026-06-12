@@ -1,0 +1,24 @@
+# App only — use with external MongoDB (e.g. MongoDB Atlas).
+# Usage: docker compose -f docker-compose.prod.yml up -d --build
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-}
+        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-}
+    restart: unless-stopped
+    ports:
+      - "${PORT:-4000}:4000"
+    env_file:
+      - backend/.env
+    environment:
+      NODE_ENV: production
+      SERVE_STATIC: "true"
+    volumes:
+      - avatar_data:/app/backend/uploads/avatars
+
+volumes:
+  avatar_data:

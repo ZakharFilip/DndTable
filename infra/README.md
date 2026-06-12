@@ -1,11 +1,24 @@
 # Infra
 
-Задача: переменные окружения, локальный запуск, позже — Docker.
+Переменные окружения, примеры конфигурации для деплоя и Nginx.
 
-Файлы:
-- `backend.env.example`
-- `frontend.env.example`
+## Файлы
 
-Готово, когда:
-- Локально можно запустить BE и FE по инструкциям в корневом README
+| Файл | Назначение |
+|------|------------|
+| `backend.env.example` | Локальная разработка → `backend/.env` |
+| `frontend.env.example` | Локальная разработка → `frontend/.env` |
+| `backend.env.production.example` | Продакшен backend → `backend/.env` на сервере |
+| `frontend.env.production.example` | Prod-сборка frontend → `frontend/.env` перед `npm run build` |
+| `nginx/dndtable.conf.example` | Nginx: статика + proxy API/WebSocket |
 
+## Быстрый старт (dev)
+
+```bash
+cp infra/backend.env.example backend/.env
+cp infra/frontend.env.example frontend/.env
+```
+
+## Деплой
+
+Полная инструкция: [DEPLOY.md](../DEPLOY.md) в корне репозитория.
