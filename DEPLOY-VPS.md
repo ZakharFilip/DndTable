@@ -6,6 +6,60 @@
 
 ---
 
+## Ваш сервер: kabantable.space
+
+| Параметр | Значение |
+|----------|----------|
+| Домен | `kabantable.space` |
+| IP VPS | `193.233.18.152` |
+| DNS | A-запись `kabantable.space` → `193.233.18.152` |
+| Путь проекта | `/opt/dndtable` |
+| Backend (внутри VPS) | `http://127.0.0.1:4000` |
+| Публичный сайт | `https://kabantable.space` |
+
+**Проверка DNS** (должен вернуть `193.233.18.152`):
+
+```bash
+dig +short kabantable.space
+```
+
+**`backend/.env` на VPS** (после Certbot):
+
+```env
+NODE_ENV=production
+PORT=4000
+MONGODB_URI=mongodb://127.0.0.1:27017/dndtable
+SESSION_SECRET=<openssl rand -base64 48>
+SESSION_COOKIE_NAME=dnd.sid
+SESSION_MAX_AGE_MS=604800000
+SOCKET_CORS_ORIGIN=https://kabantable.space
+SERVE_STATIC=false
+TRUST_PROXY=1
+```
+
+До Certbot временно: `SOCKET_CORS_ORIGIN=http://kabantable.space`.
+
+**Nginx** — в конфиге замените `YOUR_DOMAIN` на `kabantable.space`:
+
+```nginx
+server_name kabantable.space;
+```
+
+**Certbot:**
+
+```bash
+sudo certbot --nginx -d kabantable.space
+```
+
+**Быстрая проверка после деплоя:**
+
+```bash
+curl -s https://kabantable.space/health
+# {"ok":true,...}
+```
+
+---
+
 ## Как устроен деплoy
 
 ```
@@ -33,7 +87,7 @@
 Проверка DNS (на своём ПК или на VPS):
 
 ```bash
-dig +short yourdomain.com
+dig +short kabantable.space
 # должен вернуть IP вашего VPS
 ```
 
@@ -146,7 +200,7 @@ MONGODB_URI=mongodb://127.0.0.1:27017/dndtable
 SESSION_SECRET=ВСТАВЬТЕ_СЛУЧАЙНУЮ_СТРОКУ
 SESSION_COOKIE_NAME=dnd.sid
 SESSION_MAX_AGE_MS=604800000
-SOCKET_CORS_ORIGIN=http://yourdomain.com
+SOCKET_CORS_ORIGIN=http://kabantable.space
 SERVE_STATIC=false
 TRUST_PROXY=1
 ```
@@ -160,7 +214,7 @@ openssl rand -base64 48
 **Важно:**
 
 - `SOCKET_CORS_ORIGIN` — **точный** origin в браузере: протокол + домен, **без** `/` в конце.
-- До Certbot: `http://yourdomain.com`. **После** Certbot — смените на `https://yourdomain.com` и перезапустите PM2.
+- До Certbot: `http://kabantable.space`. **После** Certbot — смените на `https://kabantable.space` и перезапустите PM2.
 - `SERVE_STATIC=false` — фронт отдаёт Nginx, не Node.
 
 ### Frontend (перед сборкой)
@@ -289,14 +343,14 @@ curl -s http://127.0.0.1/health
 # {"ok":true,...}
 ```
 
-С вашего ПК в браузере: `http://yourdomain.com` — должна открыться страница входа.
+С вашего ПК в браузере: `http://kabantable.space` — должна открыться страница входа.
 
 ---
 
 ## Шаг 8. SSL (Certbot)
 
 ```bash
-sudo certbot --nginx -d yourdomain.com
+sudo certbot --nginx -d kabantable.space
 ```
 
 Certbot добавит HTTPS и редирект с HTTP. Следуйте подсказкам (email, согласие).
@@ -310,7 +364,7 @@ nano /opt/dndtable/backend/.env
 Измените:
 
 ```env
-SOCKET_CORS_ORIGIN=https://yourdomain.com
+SOCKET_CORS_ORIGIN=https://kabantable.space
 ```
 
 ```bash
@@ -322,11 +376,11 @@ pm2 restart dndtable-api
 **Контрольная точка:**
 
 ```bash
-curl -s https://yourdomain.com/health
+curl -s https://kabantable.space/health
 # {"ok":true,...}
 ```
 
-В браузере: `https://yourdomain.com` — замок в адресной строке.
+В браузере: `https://kabantable.space` — замок в адресной строке.
 
 ---
 
@@ -334,8 +388,8 @@ curl -s https://yourdomain.com/health
 
 | Проверка | Ожидание |
 |----------|----------|
-| `https://yourdomain.com` | Страница Login |
-| `https://yourdomain.com/health` | JSON `{ "ok": true }` |
+| `https://kabantable.space` | Страница Login |
+| `https://kabantable.space/health` | JSON `{ "ok": true }` |
 | Регистрация / вход | В DevTools → Application → Cookies есть `dnd.sid` |
 | `/sessions` после входа | Список сессий |
 | Стол `/sessions/:id` | Объекты двигаются; в Network есть WebSocket `/socket.io/` |
@@ -393,14 +447,52 @@ npm run build
 sudo systemctl reload nginx
 ```
 
-### 9. Конфликт `default` site в Nginx
+### 9. HTTPS показывает «Welcome to nginx!», а HTTP работает
+
+**Причина:** порт **443** обслуживает сайт `default`, а не `dndtable`. Certbot мог повесить SSL на default, или default не отключили до/после certbot.
+
+**Исправление на VPS** (для kabantable.space):
+
+```bash
+# 1. Посмотреть, кто слушает 443
+sudo nginx -T 2>/dev/null | grep -E "listen 443|server_name"
+
+# 2. Отключить дефолтный сайт
+sudo rm -f /etc/nginx/sites-enabled/default
+
+# 3. Проверить, что сертификат уже есть
+sudo certbot certificates
+# должна быть строка Certificate Name: kabantable.space
+
+# 4. Поставить полный конфиг (HTTP редирект + HTTPS + ваше приложение)
+sudo cp /opt/dndtable/infra/nginx/dndtable.kabantable.conf.example /etc/nginx/sites-available/dndtable
+sudo ln -sf /etc/nginx/sites-available/dndtable /etc/nginx/sites-enabled/dndtable
+
+# 5. Если сертификата ещё нет:
+# sudo certbot certonly --nginx -d kabantable.space
+
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+**Проверка:**
+
+```bash
+curl -sI https://kabantable.space | head -5
+curl -s https://kabantable.space/health
+# не должно быть HTML «Welcome to nginx»
+```
+
+Затем в `backend/.env`: `SOCKET_CORS_ORIGIN=https://kabantable.space` и `pm2 restart dndtable-api`.
+
+### 10. Конфликт `default` site в Nginx
 
 ```bash
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### 10. Порт 4000 закрыт снаружи — это нормально
+### 11. Порт 4000 закрыт снаружи — это нормально
 
 Backend только на localhost; снаружи нужны 80/443.
 
@@ -412,7 +504,7 @@ Backend только на localhost; снаружи нужны 80/443.
 
 ```bash
 echo "=== DNS ==="
-dig +short yourdomain.com
+dig +short kabantable.space
 
 echo "=== Mongo ==="
 systemctl is-active mongod

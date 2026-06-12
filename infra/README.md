@@ -11,7 +11,8 @@
 | `backend.env.production.example` | Продакшен backend → `backend/.env` на сервере |
 | `frontend.env.production.example` | Prod-сборка frontend → `frontend/.env` перед `npm run build` |
 | `nginx/dndtable.http.conf.example` | Nginx **до Certbot** (только HTTP) |
-| `nginx/dndtable.conf.example` | Nginx **после** Certbot (SSL вручную; обычно certbot правит сам) |
+| `nginx/dndtable.kabantable.conf.example` | Полный HTTP+HTTPS для kabantable.space (если HTTPS показывает Welcome to nginx) |
+| `nginx/dndtable.conf.example` | Шаблон SSL вручную (замените YOUR_DOMAIN) |
 
 ## Быстрый старт (dev)
 

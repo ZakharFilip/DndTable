@@ -1,0 +1,57 @@
+# Полный конфиг для kabantable.space (HTTP + HTTPS).
+# Используйте ПОСЛЕ получения сертификата: sudo certbot certonly --nginx -d kabantable.space
+# или если certbot уже выдавал сертификат — просто скопируйте этот файл.
+#
+# На VPS:
+#   sudo cp /opt/dndtable/infra/nginx/dndtable.kabantable.conf.example /etc/nginx/sites-available/dndtable
+#   sudo rm -f /etc/nginx/sites-enabled/default
+#   sudo ln -sf /etc/nginx/sites-available/dndtable /etc/nginx/sites-enabled/dndtable
+#   sudo nginx -t && sudo systemctl reload nginx
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name kabantable.space;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name kabantable.space;
+
+    ssl_certificate     /etc/letsencrypt/live/kabantable.space/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/kabantable.space/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    root /opt/dndtable/frontend/dist;
+    index index.html;
+
+    client_max_body_size 10M;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location ~ ^/(auth|api|health|avatars) {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+    }
+}
