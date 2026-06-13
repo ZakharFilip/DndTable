@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSession } from "../state/session";
-import { getUserMe, searchUsers, uploadAvatar } from "../api/users";
+import { deleteMyAccount, getUserMe, searchUsers, uploadAvatar } from "../api/users";
 import {
   getFriends,
   removeFriend,
@@ -17,6 +18,7 @@ import {
   EmptyState,
   Input,
   Label,
+  Modal,
   SegmentedControl,
   Spinner,
 } from "../components/ui";
@@ -50,7 +52,8 @@ function ListItem({
 }
 
 export default function ProfilePage() {
-  const { user, refreshSession } = useSession();
+  const { user, refreshSession, clearSession } = useSession();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("profile");
   const [friendCode, setFriendCode] = useState("");
   const [codeInput, setCodeInput] = useState("");
@@ -63,6 +66,9 @@ export default function ProfilePage() {
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
+  const [deleteConfirmUsername, setDeleteConfirmUsername] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   useEffect(() => {
     void getUserMe()
@@ -157,7 +163,28 @@ export default function ProfilePage() {
     }
   };
 
+  const closeDeleteFlow = () => {
+    setDeleteStep(0);
+    setDeleteConfirmUsername("");
+    setDeleteBusy(false);
+  };
+
+  const confirmDeleteAccount = async () => {
+    if (!user || deleteConfirmUsername !== user.username) return;
+    setDeleteBusy(true);
+    setMessage(null);
+    try {
+      await deleteMyAccount(deleteConfirmUsername);
+      clearSession();
+      navigate("/login", { replace: true });
+    } catch {
+      showMessage("Не удалось удалить аккаунт", "error");
+      closeDeleteFlow();
+    }
+  };
+
   return (
+    <>
     <PageLayout title="Профиль" description="Аккаунт, друзья и поиск игроков" maxWidth="md">
       <div className="mb-4">
         <SegmentedControl value={tab} options={TAB_OPTIONS} onChange={setTab} />
@@ -228,6 +255,15 @@ export default function ProfilePage() {
               <Button variant="ghost" size="sm" onClick={() => void refreshSession()}>
                 Обновить данные
               </Button>
+              <div className="border-t border-border pt-4">
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setDeleteStep(1)}
+                >
+                  Удалить аккаунт
+                </Button>
+              </div>
             </>
           ) : (
             <EmptyState title="Войдите в аккаунт" />
@@ -301,5 +337,57 @@ export default function ProfilePage() {
         </>
       )}
     </PageLayout>
+
+    <Modal
+      open={deleteStep === 1}
+      onClose={closeDeleteFlow}
+      title="Удалить аккаунт?"
+      footer={
+        <>
+          <Button variant="secondary" onClick={closeDeleteFlow}>
+            Отмена
+          </Button>
+          <Button variant="danger" onClick={() => setDeleteStep(2)}>
+            Продолжить
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm text-text-secondary">
+        Это действие необратимо. Будут удалены все ваши сессии, друзья и данные аккаунта.
+      </p>
+    </Modal>
+
+    <Modal
+      open={deleteStep === 2}
+      onClose={closeDeleteFlow}
+      title="Подтверждение удаления"
+      footer={
+        <>
+          <Button variant="secondary" onClick={closeDeleteFlow}>
+            Отмена
+          </Button>
+          <Button
+            variant="danger"
+            loading={deleteBusy}
+            disabled={!user || deleteConfirmUsername !== user.username}
+            onClick={() => void confirmDeleteAccount()}
+          >
+            Удалить навсегда
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm text-text-secondary mb-3">
+        Введите ваш никнейм <strong className="text-text">{user?.username}</strong> для подтверждения.
+      </p>
+      <Input
+        value={deleteConfirmUsername}
+        onChange={(e) => setDeleteConfirmUsername(e.target.value)}
+        placeholder="Никнейм"
+        autoComplete="off"
+      />
+    </Modal>
+    </>
   );
 }

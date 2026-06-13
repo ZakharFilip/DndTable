@@ -45,9 +45,13 @@ export default function LoginPage() {
         setSubmitError("Неверный email или пароль");
       }
     } catch (err: unknown) {
-      const e = err as { response?: { status?: number; data?: { message?: string } } };
+      const e = err as {
+        response?: { status?: number; data?: { error?: string; message?: string } };
+      };
       if (e.response?.status === 401) {
         setSubmitError("Неверный email или пароль");
+      } else if (e.response?.data?.error === "USER_BANNED") {
+        setSubmitError("Аккаунт заблокирован");
       } else if (e.response?.data?.message) {
         setSubmitError(e.response.data.message);
       } else {

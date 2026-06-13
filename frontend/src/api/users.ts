@@ -19,3 +19,10 @@ export async function uploadAvatar(file: File): Promise<{ data: { avatar: string
   });
   return resp.data;
 }
+
+export async function deleteMyAccount(confirmUsername: string) {
+  const resp = await http.delete("/api/users/me", {
+    data: { confirmUsername },
+  });
+  return resp.data;
+}

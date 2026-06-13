@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { body } from "express-validator";
 import { requireAuth } from "../../shared/requireAuth.js";
+import { requireNotBanned } from "../../shared/requireNotBanned.js";
 import { requireSessionParticipant } from "../../shared/requireSessionParticipant.js";
 import { requireValidObjectId } from "../../shared/requireValidObjectId.js";
 import { validate } from "../../shared/validate.js";
@@ -11,7 +12,7 @@ import { emitAccessChanged } from "./emitAccessChanged.js";
 
 const router = Router({ mergeParams: true });
 
-router.use(requireAuth);
+router.use(requireAuth, requireNotBanned);
 router.use(requireValidObjectId("id"));
 router.use(requireSessionParticipant);
 

@@ -6,6 +6,7 @@ export interface IUser extends Document {
   passwordHash: string;
   avatar?: string;
   friendCode?: string;
+  isBanned?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +18,7 @@ const UserSchema = new Schema<IUser>(
     passwordHash: { type: String, required: true },
     avatar: { type: String, default: "default-avatar.png" },
     friendCode: { type: String, unique: true, sparse: true, trim: true },
+    isBanned: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { body, CustomValidator } from "express-validator";
 import { hasDangerousContent } from "../../shared/safeText.js";
 import { requireAuth } from "../../shared/requireAuth";
+import { requireNotBanned } from "../../shared/requireNotBanned.js";
 import { requireSessionParticipant } from "../../shared/requireSessionParticipant";
 import { validate } from "../../shared/validate";
 import { requireValidObjectId } from "../../shared/requireValidObjectId";
@@ -19,7 +20,7 @@ const noDangerousContent: CustomValidator = (value) => {
   return true;
 };
 
-router.use(requireAuth);
+router.use(requireAuth, requireNotBanned);
 
 // POST /api/sessions — создать сессию
 router.post(

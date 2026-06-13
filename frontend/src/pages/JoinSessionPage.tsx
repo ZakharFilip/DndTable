@@ -55,8 +55,13 @@ export default function JoinSessionPage() {
     try {
       await joinSession(sessionId);
       navigate(`/sessions/${sessionId}`, { state: { returnTo: location.pathname } });
-    } catch {
-      setError("Не удалось войти в сессию");
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string; message?: string } } };
+      if (e.response?.data?.error === "SESSION_BLOCKED") {
+        setError("Вход в эту сессию заблокирован");
+      } else {
+        setError("Не удалось войти в сессию");
+      }
     } finally {
       setJoining(null);
     }

@@ -3,11 +3,22 @@ import { UserModel } from "../users/user.model";
 import { FriendCodeGenerator } from "../users/FriendCodeGenerator.js";
 import { RegisterDto, LoginDto } from "./auth.dto";
 import { HttpError } from "../../shared/HttpError";
+import { isAdminEmail } from "../../shared/adminEmail.js";
+import { toPublicUser } from "../../shared/userPublicDto.js";
 
 export class AuthService {
   static async register(dto: RegisterDto) {
     const email = dto.email.toLowerCase().trim();
     const username = dto.username.trim();
+
+    if (isAdminEmail(email)) {
+      throw new HttpError(
+        400,
+        "RESERVED_EMAIL",
+        "Этот адрес электронной почты зарезервирован",
+        { field: "email" }
+      );
+    }
 
     const foundByEmail = await UserModel.findOne({ email });
     if (foundByEmail) {
@@ -56,13 +67,7 @@ export class AuthService {
     return {
       success: true,
       data: {
-        user: {
-          id: String(user._id),
-          email: user.email,
-          username: user.username,
-          avatar: user.avatar,
-          friendCode: user.friendCode,
-        },
+        user: toPublicUser(user),
       },
       message: "Регистрация прошла успешно",
     };
@@ -81,14 +86,14 @@ export class AuthService {
       throw new HttpError(401, "INVALID_CREDENTIALS", "Неверный логин или пароль");
     }
 
+    if (user.isBanned && !isAdminEmail(user.email)) {
+      throw new HttpError(403, "USER_BANNED", "Аккаунт заблокирован");
+    }
+
     return {
       success: true,
       data: {
-        user: {
-          id: String(user._id),
-          email: user.email,
-          username: user.username,
-        },
+        user: toPublicUser(user),
       },
     };
   }

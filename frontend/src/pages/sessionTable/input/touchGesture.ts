@@ -38,3 +38,38 @@ export function classifyLongPressEnd(params: {
   if (!movedPastSlop && !hadSelectionAtStart) return "selectOnly";
   return "none";
 }
+
+export type PinchBaseline = {
+  startDistance: number;
+  startScale: number;
+  startStagePos: { x: number; y: number };
+  startMidpoint: { x: number; y: number };
+};
+
+/** True when pinch baseline must be captured on this frame (first two-finger move). */
+export function shouldInitPinchBaseline(
+  phase: TouchGesturePhase,
+  startDistance: number,
+): boolean {
+  return phase !== "twoFinger" || startDistance <= 0;
+}
+
+export function computePinchScaleFactor(
+  currentDistance: number,
+  startDistance: number,
+): number | null {
+  if (startDistance <= 0) return null;
+  return currentDistance / startDistance;
+}
+
+/** Pan delta applied on top of zoom-anchored stage position. */
+export function composePinchStagePos(
+  zoomedStagePos: { x: number; y: number },
+  startMidpoint: { x: number; y: number },
+  currentMidpoint: { x: number; y: number },
+): { x: number; y: number } {
+  return {
+    x: zoomedStagePos.x + (currentMidpoint.x - startMidpoint.x),
+    y: zoomedStagePos.y + (currentMidpoint.y - startMidpoint.y),
+  };
+}

@@ -20,6 +20,7 @@ import usersRouter from './modules/users/users.router.js';
 import friendsRouter from './modules/friends/friends.router.js';
 import inboxRouter from './modules/inbox/inbox.router.js';
 import sessionInvitesRouter from './modules/gamesessions/session-invites/session-invites.router.js';
+import adminRouter from './modules/admin/admin.router.js';
 import { FriendCodeGenerator } from './modules/users/FriendCodeGenerator.js';
 import { setIoInstance } from "./shared/io.js";
 import { AVATARS_DIR } from "./modules/users/avatarUpload.js";
@@ -106,6 +107,7 @@ async function main() {
   app.use('/api/sessions', gamesessionsRouter);
   app.use('/api/sessions/:id/invites', sessionInvitesRouter);
   app.use('/api/sessions/:id/access', accessRouter);
+  app.use('/api/admin', adminRouter);
   app.use('/health', healthRouter);
 
   if (SERVE_STATIC) {

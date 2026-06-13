@@ -414,8 +414,9 @@
     left: 0;
     bottom: 0;
     width: 100%;
-    height: min(55vh, calc(100% - 80px));
+    height: min(72vh, calc(100dvh - 72px - env(safe-area-inset-top, 0px)));
     padding-top: 0;
+    z-index: 45;
     border-left: none;
     border-top: 1px solid var(--color-border);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
@@ -424,9 +425,10 @@
 
   .st-inspector-collapsed {
     top: auto;
-    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
     right: 12px;
     transform: none;
+    z-index: 45;
   }
 
   .st-inspector-tab-btn {
@@ -444,8 +446,9 @@
     bottom: 0;
     width: 100%;
     max-width: 100%;
-    height: min(60vh, calc(100% - 60px));
+    height: min(72vh, calc(100dvh - 72px - env(safe-area-inset-top, 0px)));
     padding-top: 0;
+    z-index: 45;
     border-right: none;
     border-top: 1px solid var(--color-border);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;

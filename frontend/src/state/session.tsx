@@ -8,6 +8,7 @@ interface User {
   username: string;
   avatar?: string;
   friendCode?: string;
+  isAdmin?: boolean;
 }
 
 interface SessionContextValue {

@@ -40,16 +40,28 @@ export default function CreateSessionPage() {
       navigate("/sessions");
     } catch (err: unknown) {
       const axiosErr = err as {
-        response?: { data?: { message?: string; details?: { field: string; message: string }[] } };
+        response?: {
+          data?: {
+            error?: string;
+            message?: string;
+            details?: { field: string; message: string }[];
+          };
+        };
       };
-      const details = axiosErr.response?.data?.details;
+      const data = axiosErr.response?.data;
+      if (data?.error === "SESSION_LIMIT_REACHED") {
+        setError("Достигнут лимит: не более 5 сессий на аккаунт");
+        setLoading(false);
+        return;
+      }
+      const details = data?.details;
       if (details?.length) {
         details.forEach((d) => {
           if (d.field === "name") setNameError(d.message);
           if (d.field === "description") setDescriptionError(d.message);
         });
       }
-      const msg = axiosErr.response?.data?.message ?? "Не удалось создать сессию";
+      const msg = data?.message ?? "Не удалось создать сессию";
       setError(msg);
     } finally {
       setLoading(false);

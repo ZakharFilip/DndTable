@@ -68,6 +68,8 @@ export default function RegisterPage() {
         setServerError("Пользователь с такой почтой уже зарегистрирован");
       } else if (data?.error === "USERNAME_ALREADY_EXISTS") {
         setServerError("Этот никнейм уже используется");
+      } else if (data?.error === "RESERVED_EMAIL") {
+        setServerError("Этот адрес электронной почты зарезервирован");
       } else if (data?.error === "VALIDATION_ERROR" && data.details) {
         const newErrors: Record<string, string | null> = {};
         data.details.forEach((d) => {

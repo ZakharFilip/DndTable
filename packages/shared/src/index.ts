@@ -192,4 +192,5 @@ export type AppliedOp =
 
 export * from "./access/index.js";
 export * from "./social/index.js";
+export * from "./admin/index.js";
 

@@ -29,10 +29,13 @@ import {
 } from "../input/resolveContextMenu";
 import type { MobileMenuState } from "../panels/MobileActionMenu";
 import {
+  composePinchStagePos,
+  computePinchScaleFactor,
   DOUBLE_TAP_MS,
   isShortTap,
   LONG_PRESS_MS,
   movementExceeded,
+  shouldInitPinchBaseline,
   TOUCH_HANDLE_PX,
   type TouchGesturePhase,
 } from "../input/touchGesture";
@@ -522,7 +525,12 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
         if (pts.length >= 2) {
           const mid = midpoint(pts[0], pts[1]);
           const dist = pointerDistance(pts[0], pts[1]);
-          if (touchPhaseRef.current !== "twoFinger") {
+          if (
+            shouldInitPinchBaseline(
+              touchPhaseRef.current,
+              pinchStartDistanceRef.current,
+            )
+          ) {
             resetTouchGesture();
             touchPhaseRef.current = "twoFinger";
             pinchStartDistanceRef.current = dist;
@@ -534,7 +542,11 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
               stagePos: stagePosRef.current!,
             });
           } else {
-            const scaleFactor = dist / Math.max(1, pinchStartDistanceRef.current);
+            const scaleFactor = computePinchScaleFactor(
+              dist,
+              pinchStartDistanceRef.current,
+            );
+            if (scaleFactor == null || !pinchStartMidpointRef.current) return;
             const zoomed = controllerRef.current?.pinchZoom({
               midpoint: mid,
               scaleFactor,
@@ -542,8 +554,13 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
               scale: pinchStartScaleRef.current,
             });
             if (zoomed) {
-              const panned = controllerRef.current?.moveTwoFingerPan({ midpoint: mid });
-              setStagePos(panned ?? zoomed.stagePos);
+              setStagePos(
+                composePinchStagePos(
+                  zoomed.stagePos,
+                  pinchStartMidpointRef.current,
+                  mid,
+                ),
+              );
               setScale(zoomed.scale);
             }
           }
@@ -725,7 +742,7 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
 
       if (activePointersRef.current.size >= 2) {
         resetTouchGesture();
-        touchPhaseRef.current = "twoFinger";
+        pinchStartDistanceRef.current = 0;
         return;
       }
 
@@ -825,6 +842,8 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
         if (activePointersRef.current.size < 2) {
           controllerRef.current?.endTwoFingerPan();
           touchPhaseRef.current = "idle";
+          pinchStartDistanceRef.current = 0;
+          pinchStartMidpointRef.current = null;
         }
         if (activePointersRef.current.size === 0) {
           setIsGrabbing(false);

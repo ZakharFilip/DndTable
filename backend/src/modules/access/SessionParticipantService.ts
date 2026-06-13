@@ -27,6 +27,14 @@ export class SessionParticipantService {
     }
     const isOwner = String(session.createdBy) === userId;
     if (isOwner) return session;
+
+    if (session.isBlocked) {
+      const isParticipant = await SessionParticipantService.isParticipant(gameSessionId, userId);
+      if (!isParticipant) {
+        throw new HttpError(403, "SESSION_BLOCKED", "Сессия заблокирована для входа");
+      }
+    }
+
     if (session.isPrivate) {
       const ok = await SessionParticipantService.isParticipant(gameSessionId, userId);
       if (!ok) {
@@ -46,6 +54,9 @@ export class SessionParticipantService {
     const session = await GameSessionModel.findById(gameSessionId).lean();
     if (!session) {
       throw new HttpError(404, "NOT_FOUND", "Сессия не найдена");
+    }
+    if (session.isBlocked && String(session.createdBy) !== userId) {
+      throw new HttpError(403, "SESSION_BLOCKED", "Сессия заблокирована для входа");
     }
     if (session.isPrivate && String(session.createdBy) !== userId) {
       const already = await SessionParticipantService.isParticipant(gameSessionId, userId);

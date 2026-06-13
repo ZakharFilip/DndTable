@@ -1,13 +1,14 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { body } from "express-validator";
 import { requireAuth } from "../../shared/requireAuth.js";
+import { requireNotBanned } from "../../shared/requireNotBanned.js";
 import { validate } from "../../shared/validate.js";
 import { requireValidObjectId } from "../../shared/requireValidObjectId.js";
 import { FriendsService } from "./FriendsService.js";
 
 const router = Router();
 
-router.use(requireAuth);
+router.use(requireAuth, requireNotBanned);
 
 router.get("/", async (req: Request, res: Response, next: NextFunction) => {
   try {

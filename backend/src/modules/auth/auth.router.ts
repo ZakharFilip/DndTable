@@ -3,6 +3,7 @@ import { body } from "express-validator";
 import { AuthService } from "./auth.service";
 import { UserModel } from "../users/user.model";
 import { validate } from "../../shared/validate";
+import { toPublicUser } from "../../shared/userPublicDto.js";
 
 const router = Router();
 
@@ -79,13 +80,7 @@ router.get("/me", async (req: Request, res: Response, next: NextFunction) => {
     return res.json({
       success: true,
       data: {
-        user: {
-          id: String(user._id),
-          email: user.email,
-          username: user.username,
-          avatar: user.avatar,
-          friendCode: user.friendCode,
-        },
+        user: toPublicUser(user),
       },
     });
   } catch (err) {
