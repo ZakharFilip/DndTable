@@ -36,6 +36,7 @@ import {
   LONG_PRESS_MS,
   movementExceeded,
   shouldInitPinchBaseline,
+  shouldAllowPinch,
   TOUCH_HANDLE_PX,
   type TouchGesturePhase,
 } from "../input/touchGesture";
@@ -516,10 +517,12 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
       if (activePointersRef.current.has(e.pointerId)) {
         activePointersRef.current.set(e.pointerId, pt);
       }
+      const transformActive = controllerRef.current?.isTransformActive() ?? false;
       if (
         isCoarsePointer &&
         e.pointerType === "touch" &&
-        activePointersRef.current.size >= 2
+        activePointersRef.current.size >= 2 &&
+        shouldAllowPinch(touchPhaseRef.current, transformActive)
       ) {
         const pts = [...activePointersRef.current.values()];
         if (pts.length >= 2) {
@@ -740,6 +743,14 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
       activePointersRef.current.set(e.pointerId, pt);
       canvas.setPointerCapture(e.pointerId);
 
+      const transformActive = controllerRef.current?.isTransformActive() ?? false;
+      if (
+        activePointersRef.current.size >= 2 &&
+        !shouldAllowPinch(touchPhaseRef.current, transformActive)
+      ) {
+        return;
+      }
+
       if (activePointersRef.current.size >= 2) {
         resetTouchGesture();
         pinchStartDistanceRef.current = 0;
@@ -765,9 +776,11 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
               handlePx: TOUCH_HANDLE_PX,
             });
             if (picked) {
-              touchPhaseRef.current = "dragObject";
+              clearLongPressTimer();
+              touchPhaseRef.current = "transform";
               touchPointerIdRef.current = e.pointerId;
               touchStartCanvasRef.current = pt;
+              touchMovedRef.current = true;
               setIsGrabbing(true);
               dragSnapshotRef.current = new Map([
                 [selectedKey, { obj: cloneObj(sel.obj), sortOrder: sel.sortOrder }],

@@ -11,6 +11,10 @@ import type { Layer, TableObjectState } from "../../../tabletop/model";
 import { LayersSection } from "./LayersSection";
 import { ObjectPermissionsSection } from "./ObjectPermissionsSection";
 
+function sortedLayers(layers: Layer[]) {
+  return [...layers].sort((a, b) => a.order - b.order);
+}
+
 interface InspectorPanelProps {
   open: boolean;
   onToggleOpen: () => void;
@@ -234,6 +238,34 @@ export function InspectorPanel({
               }}
               onBlur={() => onCommit(selected.key)}
             />
+          </label>
+
+          <label className="text-xs text-text-secondary block">
+            Слой
+            <select
+              className="mt-1 w-full px-2 py-1 border border-border rounded text-sm bg-surface"
+              value={selected.obj.layerId ?? ""}
+              disabled={locked}
+              onChange={(e) => {
+                const layerId = e.target.value || null;
+                const keys =
+                  selectedKeys.length > 1 ? selectedKeys : [selected.key];
+                for (const key of keys) {
+                  onUpdateLocal(key, (o) => ({
+                    ...o,
+                    obj: { ...o.obj, layerId },
+                  }));
+                  onCommit(key);
+                }
+              }}
+            >
+              <option value="">Без слоя</option>
+              {sortedLayers(layers).map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
           </label>
 
           {getMeta(selected.obj).kind !== "chip" && (

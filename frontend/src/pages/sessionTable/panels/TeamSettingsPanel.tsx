@@ -16,16 +16,7 @@ import {
 } from "./teamSettingsHelpers";
 import { SessionInviteModal } from "./SessionInviteModal";
 import { Avatar } from "../../../components/Avatar";
-
-const PERM_LABELS: Record<Permission, string> = {
-  MoveObject: "Перемещение",
-  CreateObject: "Создание",
-  DeleteObject: "Удаление",
-  ModifyVisibility: "Видимость",
-  ModifyPermissions: "Права",
-  ModifyTransform: "Трансформ",
-  ChangeObjectProperties: "Свойства",
-};
+import { GRANT_UI_LABELS, PERM_LABELS } from "./permissionUiLabels";
 
 type TriState = "Undefined" | "Allow" | "Deny";
 
@@ -377,9 +368,9 @@ export function TeamSettingsPanel({
                               );
                             }}
                           >
-                            <option value="Undefined">—</option>
-                            <option value="Allow">Allow</option>
-                            <option value="Deny">Deny</option>
+                            <option value="Undefined">{GRANT_UI_LABELS.Undefined}</option>
+                            <option value="Allow">{GRANT_UI_LABELS.Allow}</option>
+                            <option value="Deny">{GRANT_UI_LABELS.Deny}</option>
                           </select>
                         </label>
                       );

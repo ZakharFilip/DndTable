@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { AccessSnapshot, Permission } from "@dnd-table/shared";
 import { PERMISSIONS } from "@dnd-table/shared";
 import { setObjectPermissionGrant, setObjectVisibilityGrant } from "../../../api/access";
+import { GRANT_UI_LABELS, PERM_LABELS, VISIBILITY_UI_LABELS } from "./permissionUiLabels";
 
 type PermTri = "Undefined" | "Allow" | "Deny";
 type VisTri = "Inherit" | "Visible" | "Hidden";
@@ -206,12 +207,12 @@ function TeamPermissionRow({
         >
           {visValue === "Mixed" && (
             <option value="Mixed" disabled>
-              Разное
+              {VISIBILITY_UI_LABELS.Mixed}
             </option>
           )}
-          <option value="Inherit">Наследовать</option>
-          <option value="Visible">Visible</option>
-          <option value="Hidden">Hidden</option>
+          <option value="Inherit">{VISIBILITY_UI_LABELS.Inherit}</option>
+          <option value="Visible">{VISIBILITY_UI_LABELS.Visible}</option>
+          <option value="Hidden">{VISIBILITY_UI_LABELS.Hidden}</option>
         </select>
       </label>
 
@@ -219,7 +220,7 @@ function TeamPermissionRow({
         const permValue = aggregatePerm(access, objectKeys, teamId, perm);
         return (
           <label key={perm} className="flex items-center justify-between text-xs text-text-secondary gap-2">
-            <span className="truncate">{perm}</span>
+            <span className="truncate">{PERM_LABELS[perm]}</span>
             <select
               disabled={!canManage}
               className="border border-border rounded px-1 py-0.5 text-xs bg-surface"
@@ -232,12 +233,12 @@ function TeamPermissionRow({
             >
               {permValue === "Mixed" && (
                 <option value="Mixed" disabled>
-                  Разное
+                  {GRANT_UI_LABELS.Mixed}
                 </option>
               )}
-              <option value="Undefined">—</option>
-              <option value="Allow">Allow</option>
-              <option value="Deny">Deny</option>
+              <option value="Undefined">{GRANT_UI_LABELS.Undefined}</option>
+              <option value="Allow">{GRANT_UI_LABELS.Allow}</option>
+              <option value="Deny">{GRANT_UI_LABELS.Deny}</option>
             </select>
           </label>
         );

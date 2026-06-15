@@ -277,6 +277,10 @@ export class TableController {
     return key;
   }
 
+  isTransformActive(): boolean {
+    return this.transform !== null;
+  }
+
   computeSelection(params: {
     hit: null | { key: string; groupId: string | null };
     shiftKey: boolean;

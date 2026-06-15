@@ -8,10 +8,20 @@ export type TouchGesturePhase =
   | "pending"
   | "pan"
   | "dragObject"
+  | "transform"
   | "longPressPending"
   | "marquee"
   | "shapeDraft"
   | "twoFinger";
+
+/** Pinch zoom/pan is disabled while resizing or rotating via handles. */
+export function shouldAllowPinch(
+  phase: TouchGesturePhase,
+  transformActive: boolean,
+): boolean {
+  if (transformActive || phase === "transform") return false;
+  return true;
+}
 
 export function movementExceeded(
   start: { x: number; y: number },

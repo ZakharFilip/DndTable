@@ -5,6 +5,7 @@ import {
   computePinchScaleFactor,
   isShortTap,
   movementExceeded,
+  shouldAllowPinch,
   shouldInitPinchBaseline,
 } from "../frontend/src/pages/sessionTable/input/touchGesture";
 
@@ -64,5 +65,12 @@ describe("touchGesture", () => {
       { x: 110, y: 190 },
     );
     expect(pos).toEqual({ x: 20, y: 10 });
+  });
+
+  it("blocks pinch during transform handle gesture", () => {
+    expect(shouldAllowPinch("transform", false)).toBe(false);
+    expect(shouldAllowPinch("pending", true)).toBe(false);
+    expect(shouldAllowPinch("idle", false)).toBe(true);
+    expect(shouldAllowPinch("twoFinger", false)).toBe(true);
   });
 });
