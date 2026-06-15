@@ -278,7 +278,10 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
   // Layers — kept here because layer ops share the same op-id / enqueue flow.
   const createLayer = useCallback(
     (layer: Layer, opts?: { activate?: boolean }) => {
-      setLayers((prev) => [...prev, layer].sort((a, b) => a.order - b.order));
+      setLayers((prev) => {
+        if (prev.some((l) => l.id === layer.id)) return prev;
+        return [...prev, layer].sort((a, b) => a.order - b.order);
+      });
       enqueueOps([
         {
           opId: newOpId(),
@@ -294,6 +297,21 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         },
       ]);
       void opts; // activation handled by caller (state belongs to page)
+    },
+    [enqueueOps, setLayers]
+  );
+
+  const deleteLayer = useCallback(
+    (layer: Layer) => {
+      setLayers((prev) => prev.filter((l) => l.id !== layer.id));
+      enqueueOps([
+        {
+          opId: newOpId(),
+          action: "delete",
+          key: layer.key,
+          baseVersion: layer.version,
+        },
+      ]);
     },
     [enqueueOps, setLayers]
   );
@@ -379,5 +397,6 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
     applyHistoryOps,
     createLayer,
     updateLayer,
+    deleteLayer,
   };
 }

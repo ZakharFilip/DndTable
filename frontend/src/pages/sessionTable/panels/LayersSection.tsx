@@ -9,6 +9,8 @@ interface LayersSectionProps {
   onToggleLayerVisible: (layer: Layer) => void;
   onToggleLayerLocked: (layer: Layer) => void;
   onReorderLayers: (orderedIds: string[]) => void;
+  onDeleteLayer: (layer: Layer) => void;
+  canDeleteLayers: boolean;
 }
 
 function sortedLayers(layers: Layer[]) {
@@ -23,6 +25,8 @@ export function LayersSection({
   onToggleLayerVisible,
   onToggleLayerLocked,
   onReorderLayers,
+  onDeleteLayer,
+  canDeleteLayers,
 }: LayersSectionProps) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -59,7 +63,7 @@ export function LayersSection({
           className="text-xs text-primary hover:underline"
           onClick={onAddLayer}
         >
-          + Add
+          + Добавить
         </button>
       </div>
       <div className="space-y-1">
@@ -121,6 +125,21 @@ export function LayersSection({
               onClick={() => onToggleLayerLocked(l)}
             >
               {l.locked ? "Lock" : "Free"}
+            </button>
+            <button
+              type="button"
+              className="px-2 py-1 text-xs border rounded hover:bg-background disabled:opacity-40 disabled:cursor-not-allowed"
+              title={
+                !canDeleteLayers
+                  ? "Нельзя удалить единственный слой"
+                  : l.locked
+                    ? "Слой заблокирован"
+                    : "Удалить слой"
+              }
+              disabled={!canDeleteLayers || l.locked}
+              onClick={() => onDeleteLayer(l)}
+            >
+              ✕
             </button>
           </div>
         ))}

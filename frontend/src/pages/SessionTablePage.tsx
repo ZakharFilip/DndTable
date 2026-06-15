@@ -39,7 +39,7 @@ import { MobileActionMenu, type MobileMenuState } from "./sessionTable/panels/Mo
 import { useCoarsePointer } from "../hooks/useCoarsePointer";
 import { filterObjectsForViewer } from "../tabletop/visibility";
 import { getSocket } from "../realtime/socket";
-import { Alert } from "../components/ui";
+import { Alert, Button, Modal } from "../components/ui";
 import "./sessionTable/SessionTableLayout.css";
 
 const layerKey = (id: string) => `layer:${id}`;
@@ -84,6 +84,10 @@ export default function SessionTablePage() {
 
   const [imageTick, setImageTick] = useState(0);
   const [spriteError, setSpriteError] = useState<string | null>(null);
+  const [layerDeleteConfirm, setLayerDeleteConfirm] = useState<{
+    layer: Layer;
+    objectCount: number;
+  } | null>(null);
   const [draftRect, setDraftRect] = useState<{
     start: { x: number; y: number };
     end: { x: number; y: number };
@@ -209,6 +213,7 @@ export default function SessionTablePage() {
     applyHistoryOps,
     createLayer,
     updateLayer,
+    deleteLayer,
   } = useObjectMutations({
     enqueueOps,
     pushHistory,
@@ -483,6 +488,38 @@ export default function SessionTablePage() {
     [layers, updateLayer]
   );
 
+  const performDeleteLayer = useCallback(
+    (layer: Layer) => {
+      const objectKeys = objectsRef.current
+        .filter((o) => o.obj.layerId === layer.id)
+        .map((o) => o.key);
+      if (objectKeys.length > 0) {
+        deleteObjects(objectKeys);
+      }
+      deleteLayer(layer);
+      if (activeLayerId === layer.id) {
+        const remaining = layersRef.current.filter((l) => l.id !== layer.id);
+        setActiveLayerId(remaining[0]?.id ?? null);
+      }
+      setLayerDeleteConfirm(null);
+    },
+    [activeLayerId, deleteLayer, deleteObjects]
+  );
+
+  const onRequestDeleteLayer = useCallback(
+    (layer: Layer) => {
+      if (layers.length <= 1) return;
+      if (layer.locked) return;
+      const objectCount = objectsRef.current.filter((o) => o.obj.layerId === layer.id).length;
+      if (objectCount === 0) {
+        performDeleteLayer(layer);
+        return;
+      }
+      setLayerDeleteConfirm({ layer, objectCount });
+    },
+    [layers.length, performDeleteLayer]
+  );
+
   const updateObjectLocal = useCallback(
     (key: string, updater: (o: TableObjectState) => TableObjectState) => {
       const next = objectsRef.current.map((o) => (o.key === key ? updater(o) : o));
@@ -747,6 +784,8 @@ export default function SessionTablePage() {
         onToggleLayerVisible={(l) => updateLayer({ ...l, visible: !l.visible })}
         onToggleLayerLocked={(l) => updateLayer({ ...l, locked: !l.locked })}
         onReorderLayers={onReorderLayers}
+        onDeleteLayer={onRequestDeleteLayer}
+        canDeleteLayers={layers.length > 1}
         onUpdateLocal={updateObjectLocal}
         onCommit={commitObject}
         onCommitWith={commitObjectWith}
@@ -759,6 +798,40 @@ export default function SessionTablePage() {
         onAccessChanged={handleAccessChanged}
         onSpriteError={onSpriteError}
       />
+
+      <Modal
+        open={layerDeleteConfirm !== null}
+        onClose={() => setLayerDeleteConfirm(null)}
+        title="Удалить слой?"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setLayerDeleteConfirm(null)}>
+              Отмена
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (layerDeleteConfirm) performDeleteLayer(layerDeleteConfirm.layer);
+              }}
+            >
+              Удалить
+            </Button>
+          </>
+        }
+      >
+        {layerDeleteConfirm && (
+          <p className="text-text-secondary">
+            На слое «{layerDeleteConfirm.layer.name}»{" "}
+            {layerDeleteConfirm.objectCount}{" "}
+            {layerDeleteConfirm.objectCount === 1
+              ? "объект"
+              : layerDeleteConfirm.objectCount < 5
+                ? "объекта"
+                : "объектов"}
+            . Удалить слой вместе со всем содержимым? Это действие нельзя отменить.
+          </p>
+        )}
+      </Modal>
     </>
   );
 }

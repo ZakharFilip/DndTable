@@ -29,6 +29,8 @@ interface InspectorPanelProps {
   onToggleLayerVisible: (layer: Layer) => void;
   onToggleLayerLocked: (layer: Layer) => void;
   onReorderLayers: (orderedIds: string[]) => void;
+  onDeleteLayer: (layer: Layer) => void;
+  canDeleteLayers: boolean;
   onUpdateLocal: (key: string, updater: (o: TableObjectState) => TableObjectState) => void;
   onCommit: (key: string) => void;
   onCommitWith: (key: string, obj: TabletopBaseObject) => void;
@@ -71,6 +73,8 @@ export function InspectorPanel({
   onToggleLayerVisible,
   onToggleLayerLocked,
   onReorderLayers,
+  onDeleteLayer,
+  canDeleteLayers,
   onUpdateLocal,
   onCommit,
   onCommitWith,
@@ -134,6 +138,8 @@ export function InspectorPanel({
           onToggleLayerVisible={onToggleLayerVisible}
           onToggleLayerLocked={onToggleLayerLocked}
           onReorderLayers={onReorderLayers}
+          onDeleteLayer={onDeleteLayer}
+          canDeleteLayers={canDeleteLayers}
         />
       )}
       {selected && (() => {

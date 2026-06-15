@@ -24,6 +24,18 @@ export function defaultBaseLayer(): Layer {
   };
 }
 
+/** Keep one row per layer id (highest version wins). */
+export function dedupeLayersById(layers: Layer[]): Layer[] {
+  const byId = new Map<string, Layer>();
+  for (const layer of layers) {
+    const existing = byId.get(layer.id);
+    if (!existing || layer.version >= existing.version) {
+      byId.set(layer.id, layer);
+    }
+  }
+  return Array.from(byId.values()).sort((a, b) => a.order - b.order);
+}
+
 /**
  * Layers are stored as `type: "layer"` rows. If none exist but objects
  * reference layerId, reconstruct layer list instead of creating duplicates.
@@ -33,7 +45,7 @@ export function resolveLayersFromSession(
   objects: TableObjectState[]
 ): { layers: Layer[]; shouldSyncDefaultLayer: boolean } {
   if (layerRows.length > 0) {
-    return { layers: layerRows, shouldSyncDefaultLayer: false };
+    return { layers: dedupeLayersById(layerRows), shouldSyncDefaultLayer: false };
   }
 
   const ids = new Set<string>();
@@ -157,7 +169,9 @@ export function applyBroadcastToLayers(prev: Layer[], applied: AppliedOp[]): Lay
         props: op.object.props,
       });
       if (!l) continue;
-      if (!next.some((x) => x.id === l.id)) next.push(l);
+      const idx = next.findIndex((x) => x.id === l.id);
+      if (idx < 0) next.push(l);
+      else next[idx] = l;
     }
     if (op.action === "update") {
       const l = layerFromDto({
