@@ -24,6 +24,7 @@ import adminRouter from './modules/admin/admin.router.js';
 import { FriendCodeGenerator } from './modules/users/FriendCodeGenerator.js';
 import { setIoInstance } from "./shared/io.js";
 import { AVATARS_DIR } from "./modules/users/avatarUpload.js";
+import { SESSION_SPRITES_DIR } from "./modules/gamesessions/session-sprites/sessionSpriteUpload.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -40,7 +41,7 @@ const SERVE_STATIC = process.env.SERVE_STATIC === "true";
 const REPO_ROOT = path.resolve(__dirname, "../..");
 const STATIC_DIR = process.env.STATIC_DIR || path.join(REPO_ROOT, "frontend", "dist");
 
-const API_PATH_PREFIXES = ["/auth", "/api", "/health", "/avatars", "/socket.io"];
+const API_PATH_PREFIXES = ["/auth", "/api", "/health", "/avatars", "/session-sprites", "/socket.io"];
 
 function maskMongoUri(uri: string): string {
   try {
@@ -77,8 +78,14 @@ async function main() {
   }
 
   app.use(cors({ origin: SOCKET_CORS_ORIGIN, credentials: true }));
-  app.use(express.json());
-  app.use("/avatars", express.static(AVATARS_DIR));
+  app.use(express.json({ limit: "10mb" }));
+  const staticCors: express.RequestHandler = (_req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", SOCKET_CORS_ORIGIN);
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  };
+  app.use("/avatars", staticCors, express.static(AVATARS_DIR));
+  app.use("/session-sprites", staticCors, express.static(SESSION_SPRITES_DIR));
 
   const sessionMiddleware = session({
     name: SESSION_COOKIE_NAME,
@@ -118,7 +125,8 @@ async function main() {
 
   const httpServer = http.createServer(app);
   const io = new SocketIOServer(httpServer, {
-    cors: { origin: SOCKET_CORS_ORIGIN, methods: ['GET', 'POST'] }
+    cors: { origin: SOCKET_CORS_ORIGIN, methods: ['GET', 'POST'] },
+    maxHttpBufferSize: 10 * 1024 * 1024,
   });
 
   setIoInstance(io);

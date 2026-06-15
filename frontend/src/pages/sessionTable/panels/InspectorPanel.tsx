@@ -1,5 +1,6 @@
 import type { TabletopBaseObject } from "@dnd-table/shared";
 import type { AccessSnapshot } from "@dnd-table/shared";
+import { prepareSpriteForSync } from "../../../api/sessionSprites";
 import {
   TRANSPARENT_FILL,
   attachSprite,
@@ -337,10 +338,17 @@ export function InspectorPanel({
                       const keyAtPick = selected.key;
                       const reader = new FileReader();
                       reader.onload = () => {
-                        const sprite = typeof reader.result === "string" ? reader.result : "";
-                        if (!sprite) return;
-                        const latest = getObjectByKey(keyAtPick) ?? sel.obj;
-                        onCommitWith(keyAtPick, attachSprite(latest, sprite));
+                        void (async () => {
+                          const sprite = typeof reader.result === "string" ? reader.result : "";
+                          if (!sprite || !sessionId) return;
+                          try {
+                            const syncSprite = await prepareSpriteForSync(sessionId, sprite);
+                            const latest = getObjectByKey(keyAtPick) ?? sel.obj;
+                            onCommitWith(keyAtPick, attachSprite(latest, syncSprite));
+                          } catch {
+                            /* ignore */
+                          }
+                        })();
                       };
                       reader.readAsDataURL(file);
                     }}

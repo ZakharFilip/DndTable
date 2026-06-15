@@ -15,6 +15,7 @@ import { type ShapeVariantId } from "../tabletop/shapes";
 import {
   applyBroadcastToLayers,
   applyBroadcastToObjects,
+  appliedOpsIncludeSprites,
   resolveLayersFromSession,
   type ParsedSession,
 } from "./sessionTable/helpers";
@@ -169,6 +170,9 @@ export default function SessionTablePage() {
       objectsRef.current = next;
       return next;
     });
+    if (appliedOpsIncludeSprites(applied)) {
+      setImageTick((t) => t + 1);
+    }
   }, []);
 
   const { syncStatus, enqueueOps, flushNow } = useTableSync({

@@ -5,6 +5,7 @@ import { getObjectAabb } from "../geometry";
 import { ShapePainter } from "../appearance/ShapePainter";
 import type { ShapeVariantId } from "../shapes";
 import { ShapeVariantRegistry } from "../shapes";
+import { resolveSpriteSrc } from "../../utils/spriteUrl";
 
 /** Contour-only glow — shadow on stroke, no fill over the object. */
 function drawSelectionGlow(
@@ -43,11 +44,14 @@ export class CanvasRenderer {
   }
 
   private getOrLoadImage(sprite: string) {
+    const src = resolveSpriteSrc(sprite);
     let img = this.imageCache.get(sprite);
     if (!img) {
       img = new Image();
-      img.src = sprite;
+      img.crossOrigin = "anonymous";
+      img.src = src;
       img.onload = this.onImageLoad;
+      img.onerror = this.onImageLoad;
       this.imageCache.set(sprite, img);
     }
     return img;

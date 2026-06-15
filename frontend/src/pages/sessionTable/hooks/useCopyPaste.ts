@@ -13,6 +13,7 @@ import {
   type Tool,
 } from "../../../tabletop/model";
 import { isTextInput } from "../../../utils/isTextInput";
+import { prepareSpriteForSync } from "../../../api/sessionSprites";
 import { CLIP_PREFIX, fitImageDimensions, loadImageNaturalSize } from "../helpers";
 
 interface UseCopyPasteParams {
@@ -71,11 +72,18 @@ export function useCopyPaste(params: UseCopyPasteParams) {
 
   const importImageSprite = useCallback(
     async (sprite: string) => {
-      const natural = await loadImageNaturalSize(sprite);
+      if (!id) return;
+      let syncSprite: string;
+      try {
+        syncSprite = await prepareSpriteForSync(id, sprite);
+      } catch {
+        return;
+      }
+      const natural = await loadImageNaturalSize(syncSprite);
       const { width, height } = fitImageDimensions(natural.width, natural.height);
       const { x, y } = screenCenterWorld();
       const result = resolveShapeImageImport({
-        sprite,
+        sprite: syncSprite,
         width,
         height,
         centerX: x,

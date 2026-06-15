@@ -9,6 +9,7 @@ import { requireValidObjectId } from "../../shared/requireValidObjectId";
 import { GameSessionsService, type IncomingTableObject } from "./gamesessions.service";
 import type { TablePatchOp } from "./table-patch";
 import { getIoInstance } from "../../shared/io";
+import sessionSpritesRouter from "./session-sprites/session-sprites.router.js";
 
 const router = Router();
 
@@ -106,6 +107,8 @@ router.delete(
     }
   }
 );
+
+router.use("/:id/sprites", sessionSpritesRouter);
 
 // POST /api/sessions/:id/join — войти в сессию (участник + команда по умолчанию)
 router.post(

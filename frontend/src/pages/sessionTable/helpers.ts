@@ -8,6 +8,7 @@ import {
   type Layer,
   type TableObjectState,
 } from "../../tabletop/model";
+import { resolveSpriteSrc } from "../../utils/spriteUrl";
 
 const DEFAULT_BASE_LAYER_ID = "base";
 
@@ -84,7 +85,7 @@ export function loadImageNaturalSize(sprite: string): Promise<{ width: number; h
         height: img.naturalHeight || 160,
       });
     img.onerror = () => resolve({ width: 240, height: 160 });
-    img.src = sprite;
+    img.src = sprite.startsWith("data:") ? sprite : resolveSpriteSrc(sprite);
   });
 }
 
@@ -124,6 +125,20 @@ export function parseSessionFull(data: SessionFullDto): ParsedSession {
 
 export function cloneObj(o: TabletopBaseObject): TabletopBaseObject {
   return JSON.parse(JSON.stringify(o)) as TabletopBaseObject;
+}
+
+function propsHaveSprite(props: Record<string, unknown> | undefined): boolean {
+  if (!props || typeof props !== "object") return false;
+  const appearance = (props as { appearance?: { sprite?: unknown } }).appearance;
+  return typeof appearance?.sprite === "string" && appearance.sprite.length > 0;
+}
+
+export function appliedOpsIncludeSprites(applied: AppliedOp[]): boolean {
+  return applied.some((op) => {
+    if (op.action === "create") return propsHaveSprite(op.object.props);
+    if (op.action === "update") return propsHaveSprite(op.patch.props);
+    return false;
+  });
 }
 
 /**
