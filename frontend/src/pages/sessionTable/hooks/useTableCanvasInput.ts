@@ -577,6 +577,19 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
         e.pointerType === "touch" &&
         touchPointerIdRef.current === e.pointerId
       ) {
+        const world = screenToWorld(pt.x, pt.y, stagePosRef.current!, scaleRef.current!);
+
+        if (touchPhaseRef.current === "transform" || transformActive) {
+          const next = controllerRef.current?.moveTransform({
+            world,
+            objects: objectsRef.current ?? [],
+          });
+          if (next) {
+            setObjects(next);
+          }
+          return;
+        }
+
         const startCanvas = touchStartCanvasRef.current;
         const startClient = touchStartClientRef.current;
         if (!startCanvas || !startClient) return;
@@ -590,7 +603,6 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
           setLongPressRing(null);
         }
 
-        const world = screenToWorld(pt.x, pt.y, stagePosRef.current!, scaleRef.current!);
         const phase = touchPhaseRef.current;
 
         if (phase === "pending" && touchMovedRef.current && !touchLongPressFiredRef.current) {
@@ -780,6 +792,8 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
               touchPhaseRef.current = "transform";
               touchPointerIdRef.current = e.pointerId;
               touchStartCanvasRef.current = pt;
+              touchStartClientRef.current = { x: e.clientX, y: e.clientY };
+              touchStartTimeRef.current = Date.now();
               touchMovedRef.current = true;
               setIsGrabbing(true);
               dragSnapshotRef.current = new Map([
