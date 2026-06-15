@@ -1,9 +1,9 @@
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import multer from "multer";
 
-const backendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+/** PM2 cwd is `backend/` (see ecosystem.config.cjs) — same layout as avatar uploads. */
+const backendRoot = path.resolve(process.cwd());
 export const SESSION_SPRITES_DIR = path.join(backendRoot, "uploads", "session-sprites");
 
 fs.mkdirSync(SESSION_SPRITES_DIR, { recursive: true });

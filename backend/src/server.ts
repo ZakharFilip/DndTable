@@ -135,6 +135,7 @@ async function main() {
   httpServer.listen(PORT, () => {
     console.log(`DnD Backend listening on port ${PORT}`);
     console.log("Socket.IO ready for connections");
+    console.log(`Session sprites dir: ${SESSION_SPRITES_DIR}`);
     console.log(`MongoDB: ${IS_PRODUCTION ? maskMongoUri(MONGODB_URI) : MONGODB_URI}`);
     if (SERVE_STATIC) {
       console.log(`Serving frontend static files from ${STATIC_DIR}`);

@@ -535,7 +535,8 @@ pm2 logs dndtable-api --lines 30 --nostream
 | Симптом | Что проверить |
 |---------|----------------|
 | Белая страница | `frontend/dist/index.html`, `npm run build`, логи Nginx `sudo tail /var/log/nginx/error.log` |
-| Картинки на столе не грузятся / белый экран после DnD | в Nginx в regex прокси должен быть `session-sprites`; `curl -I https://ВАШ_ДОМЕН/session-sprites/<sessionId>/<file>` → `Content-Type: image/*`, не `text/html` |
+| Картинки на столе не грузятся / белый экран после DnD | в Nginx должен быть блок `location /session-sprites/` **до** `location /`; `curl -I https://ВАШ_ДОМЕН/session-sprites/<sessionId>/<file>` → `Content-Type: image/*`, не `text/html` |
+| 404 на `/session-sprites/...` | Nginx уже проксирует на backend, но файла нет на диске: `find /opt/dndtable/backend -path '*session-sprites*' -type f`; `pm2 logs` → строка `Session sprites dir:`; проверка `curl -I http://127.0.0.1:4000/session-sprites/<sessionId>/<file>` |
 | 502 Bad Gateway на `/api` или `/health` | `pm2 status`, `curl 127.0.0.1:4000/health` |
 | CORS в консоли | `SOCKET_CORS_ORIGIN` = exact origin |
 | Login не держится | HTTPS + `https://` в CORS; cookie `dnd.sid` в DevTools |
@@ -554,8 +555,9 @@ npm run build
 pm2 restart dndtable-api
 sudo nginx -t && sudo systemctl reload nginx
 ```
+sudo systemctl reload nginx
 
-После обновления nginx-конфига убедитесь, что `location ~ ^/(auth|api|health|avatars|session-sprites)` проксирует спрайты на backend (иначе браузер получит `index.html` вместо JPEG).
+После обновления nginx-конфига убедитесь, что есть отдельный блок `location /session-sprites/` **перед** `location /` (иначе браузер получит `index.html` вместо JPEG).
 
 ---
 
