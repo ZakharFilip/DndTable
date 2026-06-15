@@ -1,6 +1,6 @@
 import type { TabletopBaseObject } from "@dnd-table/shared";
 import type { AccessSnapshot } from "@dnd-table/shared";
-import { prepareSpriteForSync } from "../../../api/sessionSprites";
+import { prepareSpriteForSync, spriteUploadErrorMessage } from "../../../api/sessionSprites";
 import {
   TRANSPARENT_FILL,
   attachSprite,
@@ -39,6 +39,7 @@ interface InspectorPanelProps {
   access?: AccessSnapshot | null;
   canManagePermissions?: boolean;
   onAccessChanged?: () => void;
+  onSpriteError?: (message: string) => void;
 }
 
 type Meta = {
@@ -80,6 +81,7 @@ export function InspectorPanel({
   access,
   canManagePermissions = false,
   onAccessChanged,
+  onSpriteError,
 }: InspectorPanelProps) {
   const locked = Boolean(selectedLayer?.locked);
   const permissionObjectKeys =
@@ -345,8 +347,8 @@ export function InspectorPanel({
                             const syncSprite = await prepareSpriteForSync(sessionId, sprite);
                             const latest = getObjectByKey(keyAtPick) ?? sel.obj;
                             onCommitWith(keyAtPick, attachSprite(latest, syncSprite));
-                          } catch {
-                            /* ignore */
+                          } catch (err) {
+                            onSpriteError?.(spriteUploadErrorMessage(err));
                           }
                         })();
                       };

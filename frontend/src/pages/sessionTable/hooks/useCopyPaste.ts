@@ -13,7 +13,7 @@ import {
   type Tool,
 } from "../../../tabletop/model";
 import { isTextInput } from "../../../utils/isTextInput";
-import { prepareSpriteForSync } from "../../../api/sessionSprites";
+import { prepareSpriteForSync, spriteUploadErrorMessage } from "../../../api/sessionSprites";
 import { CLIP_PREFIX, fitImageDimensions, loadImageNaturalSize } from "../helpers";
 
 interface UseCopyPasteParams {
@@ -31,6 +31,7 @@ interface UseCopyPasteParams {
   setSelectedKeys: (ks: string[]) => void;
   createObject: (key: string, obj: TabletopBaseObject) => void;
   commitObjectWith: (key: string, obj: TabletopBaseObject) => void;
+  onSpriteError?: (message: string) => void;
 }
 
 /**
@@ -56,6 +57,7 @@ export function useCopyPaste(params: UseCopyPasteParams) {
     setSelectedKeys,
     createObject,
     commitObjectWith,
+    onSpriteError,
   } = params;
 
   const memoryClipboardRef = useRef<string | null>(null);
@@ -76,7 +78,8 @@ export function useCopyPaste(params: UseCopyPasteParams) {
       let syncSprite: string;
       try {
         syncSprite = await prepareSpriteForSync(id, sprite);
-      } catch {
+      } catch (err) {
+        onSpriteError?.(spriteUploadErrorMessage(err));
         return;
       }
       const natural = await loadImageNaturalSize(syncSprite);
@@ -114,6 +117,7 @@ export function useCopyPaste(params: UseCopyPasteParams) {
       createObject,
       setSelectedKey,
       setSelectedKeys,
+      onSpriteError,
     ]
   );
 

@@ -64,7 +64,7 @@ curl -s https://kabantable.space/health
 
 ```
 Браузер  →  Nginx (443/80)  →  frontend/dist     (страницы React)
-                           └→  Node :4000         (/auth, /api, /health, /avatars, /socket.io)
+                           └→  Node :4000         (/auth, /api, /health, /avatars, /session-sprites, /socket.io)
                                     └→  MongoDB
 ```
 
@@ -535,6 +535,7 @@ pm2 logs dndtable-api --lines 30 --nostream
 | Симптом | Что проверить |
 |---------|----------------|
 | Белая страница | `frontend/dist/index.html`, `npm run build`, логи Nginx `sudo tail /var/log/nginx/error.log` |
+| Картинки на столе не грузятся / белый экран после DnD | в Nginx в regex прокси должен быть `session-sprites`; `curl -I https://ВАШ_ДОМЕН/session-sprites/<sessionId>/<file>` → `Content-Type: image/*`, не `text/html` |
 | 502 Bad Gateway на `/api` или `/health` | `pm2 status`, `curl 127.0.0.1:4000/health` |
 | CORS в консоли | `SOCKET_CORS_ORIGIN` = exact origin |
 | Login не держится | HTTPS + `https://` в CORS; cookie `dnd.sid` в DevTools |
@@ -551,8 +552,10 @@ git pull
 npm install
 npm run build
 pm2 restart dndtable-api
-sudo systemctl reload nginx
+sudo nginx -t && sudo systemctl reload nginx
 ```
+
+После обновления nginx-конфига убедитесь, что `location ~ ^/(auth|api|health|avatars|session-sprites)` проксирует спрайты на backend (иначе браузер получит `index.html` вместо JPEG).
 
 ---
 

@@ -15,6 +15,7 @@ import AdminPanelPage from './pages/AdminPanelPage';
 import { RedirectIfAuth, RequireAuth } from "./app/RouteGuards";
 import { RequireAdmin } from "./app/RequireAdmin";
 import { AppShell } from "./app/AppShell";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import './App.css';
 
 export default function App() {
@@ -36,7 +37,7 @@ export default function App() {
           }
         />
         <Route path="/design-preview" element={<DesignSystemPreview />} />
-        <Route element={<RequireAuth><AppShell /></RequireAuth>}>
+        <Route element={<RequireAuth><ErrorBoundary title="Ошибка приложения"><AppShell /></ErrorBoundary></RequireAuth>}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/sessions" element={<SessionsListPage />} />
           <Route path="/sessions/join" element={<JoinSessionPage />} />
@@ -44,7 +45,7 @@ export default function App() {
           <Route path="/records" element={<GameRecordsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Route>
-        <Route path="/sessions/:id" element={<RequireAuth><SessionTablePage /></RequireAuth>} />
+        <Route path="/sessions/:id" element={<RequireAuth><ErrorBoundary title="Ошибка стола сессии"><SessionTablePage /></ErrorBoundary></RequireAuth>} />
         <Route path="/party/:id" element={<RequireAuth><Party /></RequireAuth>} />
       </Routes>
     </BrowserRouter>

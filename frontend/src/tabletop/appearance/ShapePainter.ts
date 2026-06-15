@@ -1,5 +1,6 @@
 import type { TabletopBaseObject } from "@dnd-table/shared";
 import { isTransparentFill } from "./ShapeFill";
+import { isDrawableImage, safeDrawImage } from "../render/imageUtils";
 
 type ShapeMeta = { width?: number; height?: number };
 
@@ -54,11 +55,11 @@ export class ShapePainter {
 
     if (sprite) {
       const img = this.getOrLoadImage(sprite);
-      if (img.complete) {
+      if (isDrawableImage(img)) {
         ctx.save();
         traceShapePath(ctx, shape, w, h);
         ctx.clip();
-        ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        safeDrawImage(ctx, img, -w / 2, -h / 2, w, h);
         ctx.restore();
       }
     }

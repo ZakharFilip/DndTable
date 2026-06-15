@@ -20,3 +20,12 @@ export async function prepareSpriteForSync(sessionId: string, sprite: string): P
   const blob = await dataUrlToCompressedBlob(sprite);
   return uploadSessionSprite(sessionId, blob);
 }
+
+export function spriteUploadErrorMessage(err: unknown): string {
+  if (err && typeof err === "object" && "response" in err) {
+    const data = (err as { response?: { data?: { message?: string } } }).response?.data;
+    if (typeof data?.message === "string" && data.message.trim()) return data.message;
+  }
+  if (err instanceof Error && err.message.trim()) return err.message;
+  return "Не удалось загрузить изображение";
+}

@@ -6,6 +6,7 @@ import { ShapePainter } from "../appearance/ShapePainter";
 import type { ShapeVariantId } from "../shapes";
 import { ShapeVariantRegistry } from "../shapes";
 import { resolveSpriteSrc } from "../../utils/spriteUrl";
+import { isDrawableImage, safeDrawImage } from "./imageUtils";
 
 /** Contour-only glow — shadow on stroke, no fill over the object. */
 function drawSelectionGlow(
@@ -157,11 +158,11 @@ export class CanvasRenderer {
         const sprite = typeof o.obj.appearance?.sprite === "string" ? o.obj.appearance.sprite : "";
         if (!sprite) continue;
         const img = this.getOrLoadImage(sprite);
-        if (!img.complete) continue;
+        if (!isDrawableImage(img)) continue;
         ctx.save();
         ctx.translate(x + w / 2, y + h / 2);
         if (deg) ctx.rotate(rad);
-        ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        safeDrawImage(ctx, img, -w / 2, -h / 2, w, h);
         ctx.strokeStyle = "rgba(0,0,0,0.25)";
         ctx.lineWidth = 2 / scale;
         ctx.strokeRect(-w / 2, -h / 2, w, h);

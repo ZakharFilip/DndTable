@@ -4,6 +4,33 @@ import { TableObjectModel } from "./table-object.model";
 
 export type { AppliedOp, TablePatchAction, TablePatchOp } from "@dnd-table/shared";
 
+const MAX_SPRITE_PATH_LEN = 512;
+
+/** Reject inline data URLs and oversized sprite paths in object props. */
+export function validateSpriteInProps(props: Record<string, unknown> | undefined): string | null {
+  if (!props || typeof props !== "object") return null;
+  const appearance = props.appearance;
+  if (!appearance || typeof appearance !== "object") return null;
+  const sprite = (appearance as { sprite?: unknown }).sprite;
+  if (typeof sprite !== "string") return null;
+  if (sprite.startsWith("data:")) return "INLINE_SPRITE_NOT_ALLOWED";
+  if (sprite.length > MAX_SPRITE_PATH_LEN) return "SPRITE_PATH_TOO_LONG";
+  return null;
+}
+
+function rejectSpritePropsConflict(
+  op: TablePatchOp,
+  conflicts: ApplyPatchResult["conflicts"],
+  expectedVersion: number
+) {
+  conflicts.push({
+    opId: op.opId,
+    key: op.key,
+    expectedVersion,
+    actualVersion: null,
+  });
+}
+
 export interface ApplyPatchResult {
   applied: AppliedOp[];
   conflicts: Array<{
@@ -31,6 +58,11 @@ export async function applyTablePatches(params: {
     if (!op?.opId || !op.key) continue;
 
     if (op.action === "create") {
+      const spriteError = validateSpriteInProps(op.object.props);
+      if (spriteError) {
+        rejectSpritePropsConflict(op, conflicts, 0);
+        continue;
+      }
       try {
         const created = await TableObjectModel.create({
           gameSessionId: sessionOid,
@@ -70,6 +102,13 @@ export async function applyTablePatches(params: {
     }
 
     if (op.action === "update") {
+      if (op.patch.props !== undefined) {
+        const spriteError = validateSpriteInProps(op.patch.props);
+        if (spriteError) {
+          rejectSpritePropsConflict(op, conflicts, op.baseVersion);
+          continue;
+        }
+      }
       const updated = await TableObjectModel.findOneAndUpdate(
         { gameSessionId: sessionOid, key: op.key, version: op.baseVersion },
         {

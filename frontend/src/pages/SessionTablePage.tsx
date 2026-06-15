@@ -39,6 +39,7 @@ import { MobileActionMenu, type MobileMenuState } from "./sessionTable/panels/Mo
 import { useCoarsePointer } from "../hooks/useCoarsePointer";
 import { filterObjectsForViewer } from "../tabletop/visibility";
 import { getSocket } from "../realtime/socket";
+import { Alert } from "../components/ui";
 import "./sessionTable/SessionTableLayout.css";
 
 const layerKey = (id: string) => `layer:${id}`;
@@ -82,6 +83,7 @@ export default function SessionTablePage() {
   const primarySelectionKey = selectedKey ?? selectedKeys[0] ?? null;
 
   const [imageTick, setImageTick] = useState(0);
+  const [spriteError, setSpriteError] = useState<string | null>(null);
   const [draftRect, setDraftRect] = useState<{
     start: { x: number; y: number };
     end: { x: number; y: number };
@@ -236,6 +238,10 @@ export default function SessionTablePage() {
 
   // ---- Copy/paste --------------------------------------------------------
 
+  const onSpriteError = useCallback((message: string) => {
+    setSpriteError(message);
+  }, []);
+
   const { copyKeys, pasteSelection, importImageSprite } = useCopyPaste({
     id,
     editingKey,
@@ -251,6 +257,7 @@ export default function SessionTablePage() {
     setSelectedKeys,
     createObject,
     commitObjectWith,
+    onSpriteError,
   });
 
   useKeyboardShortcuts({ editingKey, onUndo: undo, onRedo: redo, onDelete: deleteSelected });
@@ -691,6 +698,24 @@ export default function SessionTablePage() {
         onAddPhoto={handleAddPhoto}
       />
 
+      {spriteError && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-md w-[calc(100%-2rem)] pointer-events-auto">
+          <Alert variant="error">
+            <div className="flex items-start justify-between gap-2">
+              <span>{spriteError}</span>
+              <button
+                type="button"
+                className="text-error/80 hover:text-error shrink-0 text-xs"
+                onClick={() => setSpriteError(null)}
+                aria-label="Закрыть"
+              >
+                ✕
+              </button>
+            </div>
+          </Alert>
+        </div>
+      )}
+
       {sessionAccess.access && id && (
         <TeamSettingsPanel
           sessionId={id}
@@ -732,6 +757,7 @@ export default function SessionTablePage() {
         access={sessionAccess.access}
         canManagePermissions={sessionAccess.canManageTeams}
         onAccessChanged={handleAccessChanged}
+        onSpriteError={onSpriteError}
       />
     </>
   );
