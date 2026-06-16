@@ -98,7 +98,11 @@ export const TabletopTextSchema = z.object({
   font: z.string().optional().default("Inter"),
   fontSize: z.number().optional().default(16),
   textColor: z.string().optional().default("#111827"),
-  alignment: z.enum(["left", "center", "right"]).optional().default("left"),
+  alignment: z.enum(["left", "center", "right", "justify"]).optional().default("left"),
+  fontWeight: z.enum(["normal", "bold"]).optional().default("normal"),
+  fontStyle: z.enum(["normal", "italic"]).optional().default("normal"),
+  textBackgroundColor: z.string().optional(),
+  lineHeight: z.number().optional().default(1.25),
 });
 export type TabletopText = z.infer<typeof TabletopTextSchema>;
 

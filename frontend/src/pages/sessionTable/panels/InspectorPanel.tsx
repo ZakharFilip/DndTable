@@ -11,6 +11,7 @@ import {
 import type { Layer, TableObjectState } from "../../../tabletop/model";
 import { LayersSection } from "./LayersSection";
 import { ObjectPermissionsSection } from "./ObjectPermissionsSection";
+import { TextInspectorSection } from "./TextInspectorSection";
 
 function sortedLayers(layers: Layer[]) {
   return [...layers].sort((a, b) => a.order - b.order);
@@ -145,6 +146,8 @@ export function InspectorPanel({
       {selected && (() => {
         const sel = selected;
         const isShape = getMeta(sel.obj).kind === "shape";
+        const isText = sel.obj.type === "text";
+        const showTextInspector = isText && selectedKeys.length === 1;
         const spriteAttached = hasSprite(sel.obj);
         const fillTransparent = isTransparentFill(sel.obj.appearance?.fillColor);
         return (
@@ -277,7 +280,7 @@ export function InspectorPanel({
             </select>
           </label>
 
-          {getMeta(selected.obj).kind !== "chip" && (
+          {getMeta(selected.obj).kind !== "chip" && !showTextInspector && (
             <div className="grid grid-cols-2 gap-2">
               <label className="text-xs text-text-secondary">
                 Width
@@ -316,6 +319,15 @@ export function InspectorPanel({
                 />
               </label>
             </div>
+          )}
+
+          {showTextInspector && (
+            <TextInspectorSection
+              selected={selected}
+              locked={locked}
+              onUpdateLocal={onUpdateLocal}
+              onCommit={onCommit}
+            />
           )}
 
           {isShape && (
@@ -398,6 +410,7 @@ export function InspectorPanel({
             </div>
           )}
 
+          {!showTextInspector && (
           <div className="grid grid-cols-2 gap-2">
             <label className="text-xs text-text-secondary">
               Fill{fillTransparent ? " (прозрачный)" : ""}
@@ -445,6 +458,7 @@ export function InspectorPanel({
               />
             </label>
           </div>
+          )}
 
           {sessionId && access && onAccessChanged && permissionObjectKeys.length > 0 && (
             <ObjectPermissionsSection

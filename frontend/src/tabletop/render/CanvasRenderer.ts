@@ -3,6 +3,7 @@ import type { WorldRect } from "../geometry";
 import { GRID_SIZE } from "../constants";
 import { getObjectAabb } from "../geometry";
 import { ShapePainter } from "../appearance/ShapePainter";
+import { TextCanvasPainter } from "../text/TextCanvasPainter";
 import type { ShapeVariantId } from "../shapes";
 import { ShapeVariantRegistry } from "../shapes";
 import { resolveSpriteSrc } from "../../utils/spriteUrl";
@@ -37,11 +38,13 @@ export class CanvasRenderer {
   private imageCache: Map<string, HTMLImageElement>;
   private onImageLoad: () => void;
   private shapePainter: ShapePainter;
+  private textPainter: TextCanvasPainter;
 
   constructor(imageCache: Map<string, HTMLImageElement>, onImageLoad: () => void) {
     this.imageCache = imageCache;
     this.onImageLoad = onImageLoad;
     this.shapePainter = new ShapePainter((sprite) => this.getOrLoadImage(sprite));
+    this.textPainter = new TextCanvasPainter();
   }
 
   private getOrLoadImage(sprite: string) {
@@ -171,41 +174,7 @@ export class CanvasRenderer {
       }
 
       if (o.obj.type === "text") {
-        const w = typeof meta.width === "number" ? meta.width : 200;
-        const h = typeof meta.height === "number" ? meta.height : 80;
-        const text = o.obj.text?.text ?? "";
-        const fontSize = o.obj.text?.fontSize ?? 16;
-        const font = o.obj.text?.font ?? "Inter";
-        const color = o.obj.text?.textColor ?? "#111827";
-
-        ctx.save();
-        ctx.strokeStyle = "rgba(0,0,0,0.15)";
-        ctx.lineWidth = 1 / scale;
-        ctx.strokeRect(x, y, w, h);
-
-        ctx.fillStyle = color;
-        ctx.font = `${fontSize}px ${font}`;
-        ctx.textBaseline = "top";
-
-        const padding = 6;
-        const maxWidth = Math.max(0, w - padding * 2);
-        const words = text.split(/\\s+/);
-        let line = "";
-        let yy = y + padding;
-        for (const word of words) {
-          const test = line ? `${line} ${word}` : word;
-          const m = ctx.measureText(test);
-          if (m.width > maxWidth && line) {
-            ctx.fillText(line, x + padding, yy);
-            line = word;
-            yy += fontSize + 2;
-            if (yy > y + h - fontSize) break;
-          } else {
-            line = test;
-          }
-        }
-        if (line && yy <= y + h - fontSize) ctx.fillText(line, x + padding, yy);
-        ctx.restore();
+        this.textPainter.draw({ ctx, obj: o.obj, scale });
         continue;
       }
 

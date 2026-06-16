@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { worldToScreen } from "../../../tabletop/geometry";
 import type { TableObjectState } from "../../../tabletop/model";
+import { resolveTextStyle, toOverlayCss } from "../../../tabletop/text";
+import { isTransparentFill } from "../../../tabletop/appearance";
 
 interface TextEditOverlayProps {
   editingObject: TableObjectState;
@@ -40,9 +42,10 @@ export function TextEditOverlay({
 
   const o = editingObject;
   if (o.obj.type !== "text") return null;
-  const meta = (o.obj.metadata as { width?: number; height?: number } | undefined) ?? {};
-  const w = typeof meta.width === "number" ? meta.width : 200;
-  const h = typeof meta.height === "number" ? meta.height : 80;
+  const style = resolveTextStyle(o.obj);
+  if (!style) return null;
+  const w = style.width;
+  const h = style.height;
   const p = o.obj.transform.position;
   const s = worldToScreen(p.x, p.y, stagePos, scale);
   const canvas = canvasRef.current;
@@ -66,6 +69,12 @@ export function TextEditOverlay({
   const left = Math.min(boundRight - width, Math.max(boundLeft, cssX));
   const top = Math.min(boundBottom - height, Math.max(boundTop, cssY));
 
+  const overlayCss = toOverlayCss(style);
+  const boxFill = o.obj.appearance?.fillColor;
+  const overlayBg =
+    style.textBackgroundColor ??
+    (boxFill && !isTransparentFill(boxFill) ? boxFill : undefined);
+
   return createPortal(
     <textarea
       ref={ref}
@@ -82,14 +91,18 @@ export function TextEditOverlay({
         }
       }}
       onBlur={() => onCommit(editingText)}
-      className="fixed z-50 p-3 bg-surface/95 border border-primary rounded shadow-card"
+      className="fixed z-50 border border-primary rounded shadow-card"
       style={{
+        ...overlayCss,
         left,
         top,
         width,
         height,
         resize: "none",
-        fontSize: isCoarsePointer ? 16 : 14,
+        padding: style.padding,
+        backgroundColor: overlayBg ?? overlayCss.backgroundColor ?? "rgba(255,255,255,0.95)",
+        fontSize: isCoarsePointer ? Math.max(style.fontSize, 16) : style.fontSize,
+        boxSizing: "border-box",
       }}
     />,
     document.body
