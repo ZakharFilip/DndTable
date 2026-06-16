@@ -62,6 +62,8 @@ export default function SessionTablePage() {
   const localEditBeforeRef = useRef(
     new Map<string, { obj: TabletopBaseObject; sortOrder: number }>()
   );
+  const noteCreatesAckedRef = useRef<(applied: AppliedOp[]) => void>(() => {});
+  const resetUnackedCreatesRef = useRef<() => void>(() => {});
   const stagePosRef = useRef(stagePos);
   const scaleRef = useRef(scale);
   const stageSizeRef = useRef(stageSize);
@@ -168,6 +170,7 @@ export default function SessionTablePage() {
       setObjects(parsed.objects);
       objectsRef.current = parsed.objects;
       localEditBeforeRef.current.clear();
+      resetUnackedCreatesRef.current();
       clearHistory();
       sessionAccess.setFromFull(parsed.access, parsed.viewer);
     },
@@ -183,6 +186,7 @@ export default function SessionTablePage() {
   }, [fetchFull, applyDataWithHistoryClear]);
 
   const onBroadcast = useCallback((applied: AppliedOp[]) => {
+    noteCreatesAckedRef.current(applied);
     setLayers((prev) => applyBroadcastToLayers(prev, applied));
     setObjects((prev) => {
       const next = applyBroadcastToObjects(prev, applied);
@@ -226,6 +230,8 @@ export default function SessionTablePage() {
     deleteLayer,
     reorderLayers,
     pushRestoreBatch,
+    noteCreatesAcked,
+    resetUnackedCreates,
   } = useObjectMutations({
     enqueueOps,
     pushHistory,
@@ -239,6 +245,11 @@ export default function SessionTablePage() {
     localEditBeforeRef,
     canPerform: sessionAccess.can,
   });
+
+  useEffect(() => {
+    noteCreatesAckedRef.current = noteCreatesAcked;
+    resetUnackedCreatesRef.current = resetUnackedCreates;
+  }, [noteCreatesAcked, resetUnackedCreates]);
 
   const undo = useCallback(() => undoHistory(applyHistoryOps), [undoHistory, applyHistoryOps]);
   const redo = useCallback(() => redoHistory(applyHistoryOps), [redoHistory, applyHistoryOps]);

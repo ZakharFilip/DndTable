@@ -13,12 +13,30 @@ type PatchAck = {
   applied?: AppliedOp[];
 };
 
+function mergeUpdateIntoCreate(create: TablePatchOp, update: TablePatchOp) {
+  if (create.action !== "create" || update.action !== "update") return;
+  const patch = update.patch;
+  if (patch.x !== undefined) create.object.x = patch.x;
+  if (patch.y !== undefined) create.object.y = patch.y;
+  if (patch.sortOrder !== undefined) create.object.sortOrder = patch.sortOrder;
+  if (patch.props !== undefined) create.object.props = patch.props;
+}
+
+function sortOpsForSend(ops: TablePatchOp[]): TablePatchOp[] {
+  const rank = (op: TablePatchOp) => (op.action === "create" ? 0 : op.action === "update" ? 1 : 2);
+  return [...ops].sort((a, b) => rank(a) - rank(b));
+}
+
 export class TableSync {
   private pending: TablePatchOp[] = [];
   private debounceTimer: number | null = null;
   private throttleTimer: number | null = null;
   private lastSendAt = 0;
   private inFlight = false;
+  /** Create ops already sent, waiting for ack. */
+  private inFlightCreates = new Set<string>();
+  /** Updates for objects whose create is still in flight. */
+  private deferredUpdates = new Map<string, TablePatchOp>();
 
   private params: {
     tableId: string;
@@ -44,7 +62,6 @@ export class TableSync {
     this.params.socket.emit("joinTable", { tableId: this.params.tableId });
     const handler = (payload: { tableId: string; clientId: string; applied: AppliedOp[] }) => {
       if (!payload || payload.tableId !== this.params.tableId || !Array.isArray(payload.applied)) return;
-      // Own ops are applied from the patch ack; skip duplicate broadcast.
       if (payload.clientId === this.params.clientId) return;
       this.params.onBroadcast(payload.applied);
     };
@@ -55,8 +72,36 @@ export class TableSync {
   }
 
   enqueue(ops: TablePatchOp[]) {
-    this.pending.push(...ops);
+    for (const op of ops) {
+      this.enqueueOne(op);
+    }
     this.scheduleFlush();
+  }
+
+  private enqueueOne(op: TablePatchOp) {
+    if (op.action === "update") {
+      const pendingCreateIdx = this.pending.findIndex(
+        (p) => p.action === "create" && p.key === op.key
+      );
+      if (pendingCreateIdx >= 0) {
+        mergeUpdateIntoCreate(this.pending[pendingCreateIdx], op);
+        return;
+      }
+      if (this.inFlightCreates.has(op.key)) {
+        const prev = this.deferredUpdates.get(op.key);
+        if (prev && prev.action === "update") {
+          const merged: TablePatchOp = {
+            ...prev,
+            patch: { ...prev.patch, ...op.patch },
+          };
+          this.deferredUpdates.set(op.key, merged);
+        } else {
+          this.deferredUpdates.set(op.key, op);
+        }
+        return;
+      }
+    }
+    this.pending.push(op);
   }
 
   flushNow() {
@@ -75,9 +120,23 @@ export class TableSync {
     }, 300);
   }
 
-  private finishFlight() {
+  private releaseDeferredCreates(applied: AppliedOp[]) {
+    for (const op of applied) {
+      if (op.action !== "create") continue;
+      this.inFlightCreates.delete(op.key);
+      const deferred = this.deferredUpdates.get(op.key);
+      if (!deferred) continue;
+      this.deferredUpdates.delete(op.key);
+      if (deferred.action === "update") {
+        this.pending.push({ ...deferred, baseVersion: op.version });
+      }
+    }
+  }
+
+  private finishFlight(applied?: AppliedOp[]) {
     this.inFlight = false;
-    if (this.pending.length > 0) this.scheduleFlush();
+    if (applied?.length) this.releaseDeferredCreates(applied);
+    if (this.pending.length > 0) void this.flush();
   }
 
   private async flush() {
@@ -95,10 +154,13 @@ export class TableSync {
       return;
     }
 
-    const batch = this.pending;
+    const batch = sortOpsForSend(this.pending);
     this.pending = [];
     this.lastSendAt = now;
     this.inFlight = true;
+    for (const op of batch) {
+      if (op.action === "create") this.inFlightCreates.add(op.key);
+    }
     this.params.setStatus("syncing");
 
     this.params.socket.emit(
@@ -111,18 +173,27 @@ export class TableSync {
           }
           this.params.setStatus("ok");
           window.setTimeout(() => this.params.setStatus("idle"), 800);
-          this.finishFlight();
+          this.finishFlight(ack.applied);
           return;
         }
         if (ack?.status === 403 || ack?.error === "FORBIDDEN") {
           this.params.setStatus("error");
           window.setTimeout(() => this.params.setStatus("idle"), 2000);
+          for (const op of batch) {
+            if (op.action === "create") this.inFlightCreates.delete(op.key);
+          }
           this.pending = batch.concat(this.pending);
           this.finishFlight();
           return;
         }
         if (ack?.status === 409 || ack?.error === "VERSION_CONFLICT") {
           this.params.setStatus("conflict");
+          for (const op of batch) {
+            if (op.action === "create") this.inFlightCreates.delete(op.key);
+          }
+          for (const op of batch) {
+            if (op.action === "create") this.deferredUpdates.delete(op.key);
+          }
           try {
             await this.params.onConflict();
             window.setTimeout(() => this.params.setStatus("idle"), 1200);
@@ -132,7 +203,9 @@ export class TableSync {
           this.finishFlight();
           return;
         }
-        // transient: put back and retry on next change
+        for (const op of batch) {
+          if (op.action === "create") this.inFlightCreates.delete(op.key);
+        }
         this.pending = batch.concat(this.pending);
         this.params.setStatus("error");
         window.setTimeout(() => this.params.setStatus("idle"), 1500);

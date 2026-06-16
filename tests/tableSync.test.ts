@@ -37,4 +37,61 @@ describe("TableSync", () => {
     });
     expect(onBroadcast).toHaveBeenCalledTimes(1);
   });
+
+  it("merges update into a pending create for the same key", () => {
+    const timeouts: Array<() => void> = [];
+    vi.stubGlobal("window", {
+      setTimeout: (fn: () => void) => {
+        timeouts.push(fn);
+        return timeouts.length;
+      },
+      clearTimeout: () => {},
+    });
+
+    let capturedOps: unknown;
+    const socket = {
+      emit: vi.fn((_event: string, payload: { ops: unknown[] }, ack?: (resp: unknown) => void) => {
+        capturedOps = payload.ops;
+        ack?.({ success: true, applied: [] });
+      }),
+      on: vi.fn(),
+      off: vi.fn(),
+    } as unknown as import("socket.io-client").Socket;
+
+    const sync = new TableSync({
+      tableId: "t1",
+      clientId: "c1",
+      socket,
+      setStatus: () => {},
+      onConflict: async () => {},
+      onBroadcast: () => {},
+    });
+
+    sync.enqueue([
+      {
+        opId: "c1",
+        action: "create",
+        key: "shape-1",
+        object: { type: "shape", x: 0, y: 0, sortOrder: 0, props: {} },
+      },
+    ]);
+    sync.enqueue([
+      {
+        opId: "u1",
+        action: "update",
+        key: "shape-1",
+        baseVersion: 1,
+        patch: { x: 40, y: 50 },
+      },
+    ]);
+    timeouts.splice(0).forEach((fn) => fn());
+
+    const ops = capturedOps as Array<{ action: string; object?: { x: number; y: number } }>;
+    expect(ops).toHaveLength(1);
+    expect(ops[0]?.action).toBe("create");
+    expect(ops[0]?.object?.x).toBe(40);
+    expect(ops[0]?.object?.y).toBe(50);
+
+    vi.unstubAllGlobals();
+  });
 });
