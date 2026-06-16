@@ -609,6 +609,7 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
             objects: objectsRef.current ?? [],
           });
           if (next) {
+            objectsRef.current = next;
             setObjects(next);
           }
           return;
@@ -694,13 +695,18 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
           objects: objectsRef.current ?? [],
         });
         if (next) {
+          objectsRef.current = next;
           setObjects(next);
           return;
         }
         if (dragObjectKey.current) {
           const move = controllerRef.current?.moveDrag({ world });
           if (move) {
-            setObjects((prev) => controllerRef.current!.applyDragToObjects(prev, move));
+            setObjects((prev) => {
+              const nextObjects = controllerRef.current!.applyDragToObjects(prev, move);
+              objectsRef.current = nextObjects;
+              return nextObjects;
+            });
           }
           return;
         }
@@ -727,17 +733,22 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
         world,
         objects: objectsRef.current ?? [],
       });
-      if (next) {
-        setObjects(next);
-        return;
-      }
-      if (dragObjectKey.current) {
-        const move = controllerRef.current?.moveDrag({ world });
-        if (move) {
-          setObjects((prev) => controllerRef.current!.applyDragToObjects(prev, move));
+        if (next) {
+          objectsRef.current = next;
+          setObjects(next);
+          return;
         }
-        return;
-      }
+        if (dragObjectKey.current) {
+          const move = controllerRef.current?.moveDrag({ world });
+          if (move) {
+            setObjects((prev) => {
+              const nextObjects = controllerRef.current!.applyDragToObjects(prev, move);
+              objectsRef.current = nextObjects;
+              return nextObjects;
+            });
+          }
+          return;
+        }
       const nextPan = controllerRef.current?.movePan({ pointer: pt });
       if (nextPan) setStagePos(nextPan);
     },

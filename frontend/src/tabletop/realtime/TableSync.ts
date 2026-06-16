@@ -5,11 +5,20 @@ export type { AppliedOp, TablePatchOp } from "@dnd-table/shared";
 
 export type SyncStatus = "idle" | "syncing" | "ok" | "error" | "conflict";
 
+type PatchAck = {
+  success?: boolean;
+  status?: number;
+  error?: string;
+  message?: string;
+  applied?: AppliedOp[];
+};
+
 export class TableSync {
   private pending: TablePatchOp[] = [];
   private debounceTimer: number | null = null;
   private throttleTimer: number | null = null;
   private lastSendAt = 0;
+  private inFlight = false;
 
   private params: {
     tableId: string;
@@ -35,6 +44,8 @@ export class TableSync {
     this.params.socket.emit("joinTable", { tableId: this.params.tableId });
     const handler = (payload: { tableId: string; clientId: string; applied: AppliedOp[] }) => {
       if (!payload || payload.tableId !== this.params.tableId || !Array.isArray(payload.applied)) return;
+      // Own ops are applied from the patch ack; skip duplicate broadcast.
+      if (payload.clientId === this.params.clientId) return;
       this.params.onBroadcast(payload.applied);
     };
     this.params.socket.on("table:patchApplied", handler);
@@ -64,8 +75,13 @@ export class TableSync {
     }, 300);
   }
 
+  private finishFlight() {
+    this.inFlight = false;
+    if (this.pending.length > 0) this.scheduleFlush();
+  }
+
   private async flush() {
-    if (this.pending.length === 0) return;
+    if (this.pending.length === 0 || this.inFlight) return;
 
     const now = Date.now();
     const minInterval = 100;
@@ -82,20 +98,27 @@ export class TableSync {
     const batch = this.pending;
     this.pending = [];
     this.lastSendAt = now;
+    this.inFlight = true;
     this.params.setStatus("syncing");
 
     this.params.socket.emit(
       "table:patch",
       { tableId: this.params.tableId, clientId: this.params.clientId, ops: batch },
-      async (ack: { success?: boolean; status?: number; error?: string; message?: string }) => {
+      async (ack: PatchAck) => {
         if (ack?.success) {
+          if (ack.applied?.length) {
+            this.params.onBroadcast(ack.applied);
+          }
           this.params.setStatus("ok");
           window.setTimeout(() => this.params.setStatus("idle"), 800);
+          this.finishFlight();
           return;
         }
         if (ack?.status === 403 || ack?.error === "FORBIDDEN") {
           this.params.setStatus("error");
           window.setTimeout(() => this.params.setStatus("idle"), 2000);
+          this.pending = batch.concat(this.pending);
+          this.finishFlight();
           return;
         }
         if (ack?.status === 409 || ack?.error === "VERSION_CONFLICT") {
@@ -106,12 +129,14 @@ export class TableSync {
           } catch {
             this.params.setStatus("error");
           }
+          this.finishFlight();
           return;
         }
         // transient: put back and retry on next change
         this.pending = batch.concat(this.pending);
         this.params.setStatus("error");
         window.setTimeout(() => this.params.setStatus("idle"), 1500);
+        this.finishFlight();
       }
     );
   }

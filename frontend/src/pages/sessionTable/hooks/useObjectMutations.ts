@@ -320,10 +320,10 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
   const commitObjectsBatch = useCallback(
     (keys: string[], opts?: { skipHistory?: boolean }) => {
       if (keys.some((k) => !assertCan(canPerform, "ModifyTransform", k))) return;
-      const touched = keys
+      const snapshots = keys
         .map((k) => objectsRef.current.find((o) => o.key === k))
         .filter(Boolean) as TableObjectState[];
-      if (touched.length === 0) return;
+      if (snapshots.length === 0) return;
 
       const keySet = new Set(keys);
       syncSetObjects(objectsRef, setObjects, (prev) =>
@@ -331,17 +331,20 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       );
 
       enqueueOps(
-        touched.map((o) => ({
-          opId: newOpId(),
-          action: "update" as const,
-          key: o.key,
-          baseVersion: o.version,
-          patch: {
-            x: o.obj.transform.position.x,
-            y: o.obj.transform.position.y,
-            props: o.obj as unknown as Record<string, unknown>,
-          },
-        }))
+        snapshots.map((o) => {
+          const latest = objectsRef.current.find((x) => x.key === o.key) ?? o;
+          return {
+            opId: newOpId(),
+            action: "update" as const,
+            key: o.key,
+            baseVersion: o.version,
+            patch: {
+              x: latest.obj.transform.position.x,
+              y: latest.obj.transform.position.y,
+              props: latest.obj as unknown as Record<string, unknown>,
+            },
+          };
+        })
       );
 
       void opts;
