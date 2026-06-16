@@ -8,6 +8,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
+    "seed:support-bot": "tsx scripts/seed-support-bot.ts",
     "admin:promote-first": "tsx scripts/promote-first-admin.ts",
     "dev-alt": "ts-node-dev --respawn --transpile-only src/server.ts"
   },

@@ -248,6 +248,17 @@ mongosh dndtable --eval "db.users.getIndexes()"
 # должен быть unique index на email
 ```
 
+### Служебный пользователь AiSupportBOT (опционально)
+
+Скрипт [backend/scripts/seed-support-bot.ts](backend/scripts/seed-support-bot.ts) — создаёт или обновляет бота в БД (пароль хешируется через bcrypt, как при регистрации).
+
+```bash
+cd /opt/dndtable
+npm -w backend run seed:support-bot
+```
+
+Вход на сайте: email `AiSuppurt@BOT.BOT.BOT`, пароль из скрипта.
+
 ---
 
 ## Шаг 5. Сборка
