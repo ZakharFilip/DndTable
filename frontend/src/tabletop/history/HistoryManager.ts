@@ -1,11 +1,17 @@
 import type { TabletopBaseObject } from "@dnd-table/shared";
+import type { Layer } from "../model";
 
 export type HistoryOp =
   | { kind: "delete"; key: string }
   | { kind: "create"; key: string; obj: TabletopBaseObject; sortOrder: number }
-  | { kind: "restore"; key: string; obj: TabletopBaseObject; sortOrder: number };
+  | { kind: "restore"; key: string; obj: TabletopBaseObject; sortOrder: number }
+  | { kind: "layers"; layers: Layer[] };
 
-export type HistoryEntry = { undo: HistoryOp[]; redo: HistoryOp[] };
+export type HistoryEntry = {
+  label?: string;
+  undo: HistoryOp[];
+  redo: HistoryOp[];
+};
 
 export class HistoryManager {
   private undoStack: HistoryEntry[] = [];
@@ -13,6 +19,11 @@ export class HistoryManager {
 
   push(entry: HistoryEntry) {
     this.undoStack.push(entry);
+    this.redoStack = [];
+  }
+
+  clear() {
+    this.undoStack = [];
     this.redoStack = [];
   }
 
@@ -38,4 +49,3 @@ export class HistoryManager {
     this.undoStack.push(entry);
   }
 }
-

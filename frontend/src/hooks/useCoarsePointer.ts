@@ -2,26 +2,19 @@ import { useEffect, useState } from "react";
 
 function detectCoarsePointer(): boolean {
   if (typeof window === "undefined") return false;
-  const coarse = window.matchMedia("(pointer: coarse)").matches;
-  const narrow = window.matchMedia("(max-width: 768px)").matches;
-  return coarse || narrow;
+  return window.matchMedia("(pointer: coarse)").matches;
 }
 
-/** True on touch-first devices or narrow viewports (session table mobile mode). */
+/** True on touch-first devices (session table mobile mode). */
 export function useCoarsePointer(): boolean {
   const [coarse, setCoarse] = useState(detectCoarsePointer);
 
   useEffect(() => {
-    const mqCoarse = window.matchMedia("(pointer: coarse)");
-    const mqNarrow = window.matchMedia("(max-width: 768px)");
-    const update = () => setCoarse(mqCoarse.matches || mqNarrow.matches);
+    const mq = window.matchMedia("(pointer: coarse)");
+    const update = () => setCoarse(mq.matches);
     update();
-    mqCoarse.addEventListener("change", update);
-    mqNarrow.addEventListener("change", update);
-    return () => {
-      mqCoarse.removeEventListener("change", update);
-      mqNarrow.removeEventListener("change", update);
-    };
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
   }, []);
 
   return coarse;

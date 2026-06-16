@@ -30,6 +30,7 @@ interface UseCopyPasteParams {
   setSelectedKey: (k: string | null) => void;
   setSelectedKeys: (ks: string[]) => void;
   createObject: (key: string, obj: TabletopBaseObject) => void;
+  createObjectsBatch: (items: Array<{ key: string; obj: TabletopBaseObject }>) => void;
   commitObjectWith: (key: string, obj: TabletopBaseObject) => void;
   onSpriteError?: (message: string) => void;
 }
@@ -56,6 +57,7 @@ export function useCopyPaste(params: UseCopyPasteParams) {
     setSelectedKey,
     setSelectedKeys,
     createObject,
+    createObjectsBatch,
     commitObjectWith,
     onSpriteError,
   } = params;
@@ -181,7 +183,7 @@ export function useCopyPaste(params: UseCopyPasteParams) {
 
       const dx = 20 / Math.max(0.0001, scaleRef.current);
       const dy = 20 / Math.max(0.0001, scaleRef.current);
-      const createdKeys: string[] = [];
+      const batch: Array<{ key: string; obj: TabletopBaseObject }> = [];
 
       for (const src of candidate) {
         if (
@@ -203,17 +205,18 @@ export function useCopyPaste(params: UseCopyPasteParams) {
             position: { ...pos, x: (pos.x ?? 0) + dx, y: (pos.y ?? 0) + dy },
           } as TabletopBaseObject["transform"],
         };
-        createObject(key, nextObj);
-        createdKeys.push(key);
+        batch.push({ key, obj: nextObj });
       }
 
-      if (createdKeys.length > 0) {
+      if (batch.length > 0) {
+        createObjectsBatch(batch);
+        const createdKeys = batch.map((b) => b.key);
         setSelectedKey(createdKeys[0]);
         setSelectedKeys(createdKeys);
       }
-      return createdKeys.length > 0;
+      return batch.length > 0;
     },
-    [id, scaleRef, createObject, setSelectedKey, setSelectedKeys]
+    [id, scaleRef, createObjectsBatch, setSelectedKey, setSelectedKeys]
   );
 
   const pasteSelection = useCallback(async () => {

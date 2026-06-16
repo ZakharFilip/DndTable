@@ -53,4 +53,26 @@ describe("HistoryManager", () => {
     h.redo(apply);
     expect(apply).not.toHaveBeenCalled();
   });
+
+  it("clear() empties undo and redo stacks", () => {
+    const h = new HistoryManager();
+    h.push(entry("a"));
+    h.clear();
+    expect(h.canUndo()).toBe(false);
+    expect(h.canRedo()).toBe(false);
+  });
+
+  it("stores layers snapshot ops", () => {
+    const h = new HistoryManager();
+    const layers = [
+      { id: "a", key: "layer:a", version: 1, name: "A", order: 0, visible: true, locked: false },
+    ];
+    h.push({
+      undo: [{ kind: "layers", layers }],
+      redo: [{ kind: "layers", layers: [...layers, { id: "b", key: "layer:b", version: 1, name: "B", order: 1, visible: true, locked: false }] }],
+    });
+    const apply = vi.fn();
+    h.undo(apply);
+    expect(apply.mock.calls[0][0][0]).toMatchObject({ kind: "layers" });
+  });
 });

@@ -16,6 +16,7 @@ import {
   applyBroadcastToLayers,
   applyBroadcastToObjects,
   appliedOpsIncludeSprites,
+  cloneObj,
   resolveLayersFromSession,
   type ParsedSession,
 } from "./sessionTable/helpers";
@@ -58,6 +59,9 @@ export default function SessionTablePage() {
 
   const objectsRef = useRef<TableObjectState[]>([]);
   const layersRef = useRef<Layer[]>([]);
+  const localEditBeforeRef = useRef(
+    new Map<string, { obj: TabletopBaseObject; sortOrder: number }>()
+  );
   const stagePosRef = useRef(stagePos);
   const scaleRef = useRef(scale);
   const stageSizeRef = useRef(stageSize);
@@ -142,7 +146,12 @@ export default function SessionTablePage() {
     isObjectVisibleRef.current = sessionAccess.isObjectVisible;
   }, [sessionAccess.isObjectVisible]);
 
-  const applyData = useCallback(
+  // ---- History & mutations ----------------------------------------------
+
+  const { push: pushHistory, undo: undoHistory, redo: redoHistory, clear: clearHistory, canUndo, canRedo } =
+    useTableHistory();
+
+  const applyDataWithHistoryClear = useCallback(
     (parsed: ParsedSession) => {
       if (parsed.viewport) {
         setStagePos({ x: parsed.viewport.panX, y: parsed.viewport.panY });
@@ -154,20 +163,24 @@ export default function SessionTablePage() {
       );
       shouldSyncDefaultLayerRef.current = shouldSyncDefaultLayer;
       setLayers(resolvedLayers);
+      layersRef.current = resolvedLayers;
       setActiveLayerId((prev) => prev ?? resolvedLayers[0]?.id ?? null);
       setObjects(parsed.objects);
+      objectsRef.current = parsed.objects;
+      localEditBeforeRef.current.clear();
+      clearHistory();
       sessionAccess.setFromFull(parsed.access, parsed.viewer);
     },
-    [sessionAccess.setFromFull]
+    [clearHistory, sessionAccess.setFromFull]
   );
 
   const { loadStatus, fetchFull } = useTableData(id);
-  useInitialLoad(id, fetchFull, applyData);
+  useInitialLoad(id, fetchFull, applyDataWithHistoryClear);
 
   const onConflict = useCallback(async () => {
     const parsed = await fetchFull();
-    if (parsed) applyData(parsed);
-  }, [fetchFull, applyData]);
+    if (parsed) applyDataWithHistoryClear(parsed);
+  }, [fetchFull, applyDataWithHistoryClear]);
 
   const onBroadcast = useCallback((applied: AppliedOp[]) => {
     setLayers((prev) => applyBroadcastToLayers(prev, applied));
@@ -200,12 +213,9 @@ export default function SessionTablePage() {
     };
   }, [id, sessionAccess.refetch]);
 
-  // ---- History & mutations ----------------------------------------------
-
-  const { push: pushHistory, undo: undoHistory, redo: redoHistory } = useTableHistory();
-
   const {
     createObject,
+    createObjectsBatch,
     commitObject,
     commitObjectWith,
     commitObjectsBatch,
@@ -214,15 +224,19 @@ export default function SessionTablePage() {
     createLayer,
     updateLayer,
     deleteLayer,
+    reorderLayers,
+    pushRestoreBatch,
   } = useObjectMutations({
     enqueueOps,
     pushHistory,
     activeLayerId,
     objectsRef,
+    layersRef,
     setObjects,
     setLayers,
     setSelectedKey,
     setSelectedKeys,
+    localEditBeforeRef,
     canPerform: sessionAccess.can,
   });
 
@@ -261,6 +275,7 @@ export default function SessionTablePage() {
     setSelectedKey,
     setSelectedKeys,
     createObject,
+    createObjectsBatch,
     commitObjectWith,
     onSpriteError,
   });
@@ -477,15 +492,9 @@ export default function SessionTablePage() {
 
   const onReorderLayers = useCallback(
     (orderedIds: string[]) => {
-      const byId = new Map(layers.map((l) => [l.id, l]));
-      orderedIds.forEach((layerId, index) => {
-        const layer = byId.get(layerId);
-        if (layer && layer.order !== index) {
-          updateLayer({ ...layer, order: index });
-        }
-      });
+      reorderLayers(orderedIds);
     },
-    [layers, updateLayer]
+    [reorderLayers]
   );
 
   const performDeleteLayer = useCallback(
@@ -522,6 +531,15 @@ export default function SessionTablePage() {
 
   const updateObjectLocal = useCallback(
     (key: string, updater: (o: TableObjectState) => TableObjectState) => {
+      if (!localEditBeforeRef.current.has(key)) {
+        const cur = objectsRef.current.find((o) => o.key === key);
+        if (cur) {
+          localEditBeforeRef.current.set(key, {
+            obj: cloneObj(cur.obj),
+            sortOrder: cur.sortOrder,
+          });
+        }
+      }
       const next = objectsRef.current.map((o) => (o.key === key ? updater(o) : o));
       objectsRef.current = next;
       setObjects(next);
@@ -540,24 +558,59 @@ export default function SessionTablePage() {
   const groupSelection = useCallback(() => {
     if (selectedKeys.length < 2) return;
     const gid = `g-${Date.now()}`;
+    const historyEntries: Array<{
+      key: string;
+      before: { obj: TabletopBaseObject; sortOrder: number };
+      after: { obj: TabletopBaseObject; sortOrder: number };
+    }> = [];
     selectedKeys.forEach((k) => {
+      const cur = objectsRef.current.find((o) => o.key === k);
+      if (!cur) return;
+      const before = { obj: cloneObj(cur.obj), sortOrder: cur.sortOrder };
       updateObjectLocal(k, (o) => ({ ...o, obj: { ...o.obj, groupId: gid } }));
-      commitObject(k);
+      const afterObj = objectsRef.current.find((o) => o.key === k);
+      if (afterObj) {
+        historyEntries.push({
+          key: k,
+          before,
+          after: { obj: cloneObj(afterObj.obj), sortOrder: afterObj.sortOrder },
+        });
+      }
+      commitObject(k, { skipHistory: true });
+      localEditBeforeRef.current.delete(k);
     });
-  }, [selectedKeys, updateObjectLocal, commitObject]);
+    pushRestoreBatch(historyEntries);
+  }, [selectedKeys, updateObjectLocal, commitObject, pushRestoreBatch]);
 
   const ungroupSelection = useCallback(() => {
     if (!selected) return;
     const gid = selected.obj.groupId;
     if (!gid) return;
-    objectsRef.current
-      .filter((o) => o.obj.groupId === gid)
-      .forEach((o) => {
-        updateObjectLocal(o.key, (x) => ({ ...x, obj: { ...x.obj, groupId: null } }));
-        commitObject(o.key);
-      });
+    const keys = objectsRef.current.filter((o) => o.obj.groupId === gid).map((o) => o.key);
+    const historyEntries: Array<{
+      key: string;
+      before: { obj: TabletopBaseObject; sortOrder: number };
+      after: { obj: TabletopBaseObject; sortOrder: number };
+    }> = [];
+    keys.forEach((k) => {
+      const cur = objectsRef.current.find((o) => o.key === k);
+      if (!cur) return;
+      const before = { obj: cloneObj(cur.obj), sortOrder: cur.sortOrder };
+      updateObjectLocal(k, (x) => ({ ...x, obj: { ...x.obj, groupId: null } }));
+      const afterObj = objectsRef.current.find((o) => o.key === k);
+      if (afterObj) {
+        historyEntries.push({
+          key: k,
+          before,
+          after: { obj: cloneObj(afterObj.obj), sortOrder: afterObj.sortOrder },
+        });
+      }
+      commitObject(k, { skipHistory: true });
+      localEditBeforeRef.current.delete(k);
+    });
+    pushRestoreBatch(historyEntries);
     setSelectedKeys([selected.key]);
-  }, [selected, updateObjectLocal, commitObject]);
+  }, [selected, updateObjectLocal, commitObject, pushRestoreBatch]);
 
   // ---- Render ------------------------------------------------------------
 
@@ -566,8 +619,8 @@ export default function SessionTablePage() {
   const handleAccessChanged = useCallback(async () => {
     await sessionAccess.refetch();
     const parsed = await fetchFull();
-    if (parsed) applyData(parsed);
-  }, [sessionAccess, fetchFull, applyData]);
+    if (parsed) applyDataWithHistoryClear(parsed);
+  }, [sessionAccess, fetchFull, applyDataWithHistoryClear]);
 
   return (
     <>
@@ -730,6 +783,8 @@ export default function SessionTablePage() {
         onOpenInspector={() => setInspectorOpen((v) => !v)}
         onUndo={undo}
         onRedo={redo}
+        canUndo={canUndo()}
+        canRedo={canRedo()}
         onDelete={deleteSelected}
         canDelete={selectedKeys.length > 0 || Boolean(selectedKey)}
         onAddPhoto={handleAddPhoto}
@@ -797,6 +852,9 @@ export default function SessionTablePage() {
         canManagePermissions={sessionAccess.canManageTeams}
         onAccessChanged={handleAccessChanged}
         onSpriteError={onSpriteError}
+        currentTool={currentTool}
+        activeShapeVariant={activeShapeVariant}
+        onShapeVariantChange={setActiveShapeVariant}
       />
 
       <Modal

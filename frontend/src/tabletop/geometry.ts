@@ -1,6 +1,7 @@
 import type { TabletopBaseObject } from "@dnd-table/shared";
 import { CHIP_RADIUS, VIEW_MARGIN } from "./constants";
-import type { TableObjectState } from "./model";
+import type { Layer, TableObjectState } from "./model";
+import { compareObjectStack } from "./layerOrder";
 
 export type WorldPoint = { x: number; y: number };
 export type WorldRect = { left: number; right: number; top: number; bottom: number };
@@ -139,13 +140,15 @@ export function pointInObject(obj: TabletopBaseObject, worldX: number, worldY: n
   return px >= -w / 2 && px <= w / 2 && py >= -h / 2 && py <= h / 2;
 }
 
-export function hitObject(worldX: number, worldY: number, objects: TableObjectState[]): TableObjectState | null {
-  const sorted = objects.slice().sort((a, b) => {
-    const az = a.obj.transform.position.z ?? 0;
-    const bz = b.obj.transform.position.z ?? 0;
-    if (az !== bz) return az - bz;
-    return a.sortOrder - b.sortOrder;
-  });
+export function hitObject(
+  worldX: number,
+  worldY: number,
+  objects: TableObjectState[],
+  layers: Layer[] = []
+): TableObjectState | null {
+  const sorted = objects
+    .slice()
+    .sort((a, b) => compareObjectStack(a, b, layers));
 
   for (let i = sorted.length - 1; i >= 0; i--) {
     const o = sorted[i];

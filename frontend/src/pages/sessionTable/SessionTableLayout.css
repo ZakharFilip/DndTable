@@ -120,6 +120,35 @@
   max-width: calc(100vw - 16px);
 }
 
+.st-shape-tool-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.st-shape-tool-split {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.st-shape-chevron {
+  width: 28px !important;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.st-shape-tool-btn {
+  min-width: 44px;
+}
+
+.st-shape-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  background: transparent;
+}
+
 .st-toolbar {
   display: flex;
   align-items: center;
@@ -276,7 +305,7 @@
   border: 1px solid var(--ds-color-structure-muted);
   box-shadow: var(--ds-shadow-elevated);
   padding: 4px;
-  z-index: 50;
+  z-index: 55;
   animation: ds-fade-in var(--ds-duration-normal) var(--ds-ease-standard),
     slide-down var(--ds-duration-fast) ease;
   transform-origin: bottom center;
@@ -452,6 +481,17 @@
     border-right: none;
     border-top: 1px solid var(--color-border);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  }
+
+  .st-toolbar-anchor {
+    z-index: 55;
+  }
+
+  .st-shape-dropdown {
+    z-index: 60;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: min(200px, calc(100vw - 32px));
   }
 
   .st-toolbar {

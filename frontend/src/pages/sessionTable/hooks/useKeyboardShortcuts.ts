@@ -39,10 +39,12 @@ export function useKeyboardShortcuts({
       if (!mod) return;
       if (e.key.toLowerCase() === "z" && !e.shiftKey) {
         if (editingKey) return;
+        if (isTextInput(e.target)) return;
         e.preventDefault();
         onUndo();
       } else if (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey)) {
         if (editingKey) return;
+        if (isTextInput(e.target)) return;
         e.preventDefault();
         onRedo();
       }

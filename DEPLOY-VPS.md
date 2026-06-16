@@ -566,6 +566,9 @@ npm run build
 pm2 restart dndtable-api
 sudo nginx -t && sudo systemctl reload nginx
 ```
+
+**Только фронтенд** (backend не менялся): `pm2 restart` не нужен — достаточно `npm install`, `npm run build` и `sudo systemctl reload nginx`. В браузере сделайте hard refresh (Ctrl+F5) из-за кэша статики.
+
 sudo systemctl reload nginx
 
 После обновления nginx-конфига убедитесь, что есть отдельный блок `location /session-sprites/` **перед** `location /` (иначе браузер получит `index.html` вместо JPEG).

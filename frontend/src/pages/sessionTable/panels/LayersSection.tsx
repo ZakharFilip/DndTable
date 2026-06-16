@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import type { Layer } from "../../../tabletop/model";
+import { sortLayersForPanel } from "../../../tabletop/layerOrder";
 
 interface LayersSectionProps {
   layers: Layer[];
@@ -14,7 +15,7 @@ interface LayersSectionProps {
 }
 
 function sortedLayers(layers: Layer[]) {
-  return [...layers].sort((a, b) => a.order - b.order);
+  return sortLayersForPanel(layers);
 }
 
 export function LayersSection({
@@ -52,6 +53,20 @@ export function LayersSection({
       setDropTargetId(null);
     },
     [dragId, ordered, onReorderLayers]
+  );
+
+  const moveLayer = useCallback(
+    (layerId: string, direction: "up" | "down") => {
+      const ids = ordered.map((l) => l.id);
+      const idx = ids.indexOf(layerId);
+      if (idx < 0) return;
+      const swapWith = direction === "up" ? idx - 1 : idx + 1;
+      if (swapWith < 0 || swapWith >= ids.length) return;
+      const next = [...ids];
+      [next[idx], next[swapWith]] = [next[swapWith], next[idx]];
+      onReorderLayers(next);
+    },
+    [ordered, onReorderLayers]
   );
 
   return (
@@ -109,6 +124,24 @@ export function LayersSection({
               title={l.name}
             >
               {l.name}
+            </button>
+            <button
+              type="button"
+              className="px-1.5 py-1 text-xs border rounded hover:bg-background disabled:opacity-40"
+              title="Выше (ближе к зрителю)"
+              onClick={() => moveLayer(l.id, "up")}
+              disabled={ordered[0]?.id === l.id}
+            >
+              ▲
+            </button>
+            <button
+              type="button"
+              className="px-1.5 py-1 text-xs border rounded hover:bg-background disabled:opacity-40"
+              title="Ниже (дальше от зрителя)"
+              onClick={() => moveLayer(l.id, "down")}
+              disabled={ordered[ordered.length - 1]?.id === l.id}
+            >
+              ▼
             </button>
             <button
               type="button"

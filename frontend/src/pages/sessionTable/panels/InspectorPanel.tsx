@@ -8,13 +8,16 @@ import {
   hasSprite,
   isTransparentFill,
 } from "../../../tabletop/appearance";
-import type { Layer, TableObjectState } from "../../../tabletop/model";
+import type { Layer, TableObjectState, Tool } from "../../../tabletop/model";
+import { sortLayersForPanel } from "../../../tabletop/layerOrder";
+import type { ShapeVariantId } from "../../../tabletop/shapes";
+import { ShapeVariantRegistry } from "../../../tabletop/shapes";
 import { LayersSection } from "./LayersSection";
 import { ObjectPermissionsSection } from "./ObjectPermissionsSection";
 import { TextInspectorSection } from "./TextInspectorSection";
 
 function sortedLayers(layers: Layer[]) {
-  return [...layers].sort((a, b) => a.order - b.order);
+  return sortLayersForPanel(layers);
 }
 
 interface InspectorPanelProps {
@@ -43,6 +46,9 @@ interface InspectorPanelProps {
   canManagePermissions?: boolean;
   onAccessChanged?: () => void;
   onSpriteError?: (message: string) => void;
+  currentTool?: Tool;
+  activeShapeVariant?: ShapeVariantId;
+  onShapeVariantChange?: (variant: ShapeVariantId) => void;
 }
 
 type Meta = {
@@ -87,6 +93,9 @@ export function InspectorPanel({
   canManagePermissions = false,
   onAccessChanged,
   onSpriteError,
+  currentTool,
+  activeShapeVariant,
+  onShapeVariantChange,
 }: InspectorPanelProps) {
   const locked = Boolean(selectedLayer?.locked);
   const permissionObjectKeys =
@@ -142,6 +151,28 @@ export function InspectorPanel({
           onDeleteLayer={onDeleteLayer}
           canDeleteLayers={canDeleteLayers}
         />
+      )}
+      {showLayers && currentTool === "shape" && activeShapeVariant && onShapeVariantChange && (
+        <div className="mt-4 pt-3 border-t border-border">
+          <div className="text-xs font-medium text-text-secondary mb-2">Форма</div>
+          <div className="flex gap-2">
+            {ShapeVariantRegistry.list().map((variant) => (
+              <button
+                key={variant.id}
+                type="button"
+                className={[
+                  "flex-1 px-3 py-2 rounded border text-sm",
+                  activeShapeVariant === variant.id
+                    ? "border-primary bg-primary-muted text-primary"
+                    : "border-border hover:bg-background",
+                ].join(" ")}
+                onClick={() => onShapeVariantChange(variant.id)}
+              >
+                {variant.label}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
       {selected && (() => {
         const sel = selected;

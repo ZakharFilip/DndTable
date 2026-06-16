@@ -2,6 +2,7 @@ import type { TableObjectState, Layer } from "../model";
 import type { WorldRect } from "../geometry";
 import { GRID_SIZE } from "../constants";
 import { getObjectAabb } from "../geometry";
+import { compareObjectStack } from "../layerOrder";
 import { ShapePainter } from "../appearance/ShapePainter";
 import { TextCanvasPainter } from "../text/TextCanvasPainter";
 import type { ShapeVariantId } from "../shapes";
@@ -138,15 +139,7 @@ export class CanvasRenderer {
         return layer ? layer.visible : true;
       })
       .slice()
-      .sort((a, b) => {
-        const af = frontSet.has(a.key) ? 1 : 0;
-        const bf = frontSet.has(b.key) ? 1 : 0;
-        if (af !== bf) return af - bf;
-        const az = a.obj.transform.position.z ?? 0;
-        const bz = b.obj.transform.position.z ?? 0;
-        if (az !== bz) return az - bz;
-        return a.sortOrder - b.sortOrder;
-      });
+      .sort((a, b) => compareObjectStack(a, b, layers, frontSet));
 
     for (const o of filtered) {
       const meta: any = o.obj.metadata ?? {};

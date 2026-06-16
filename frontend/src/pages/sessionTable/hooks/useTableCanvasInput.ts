@@ -89,7 +89,7 @@ export type UseTableCanvasInputParams = {
   contextMenuKeysRef: RefObject<string[]>;
   visibleObjects: () => TableObjectState[];
   createObject: (key: string, obj: TabletopBaseObject) => void;
-  commitObjectWith: (key: string, obj: TabletopBaseObject) => void;
+  commitObjectWith: (key: string, obj: TabletopBaseObject, opts?: { skipHistory?: boolean }) => void;
   commitObjectsBatch: (keys: string[]) => void;
   pushHistory: (entry: {
     undo: Array<{
@@ -251,8 +251,32 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
 
     const transformKey = controllerRef.current?.endTransform();
     if (transformKey) {
+      const before = dragSnapshotRef.current.get(transformKey);
       const cur = objectsRef.current?.find((o) => o.key === transformKey);
-      if (cur) commitObjectWith(transformKey, cur.obj);
+      if (cur) commitObjectWith(transformKey, cur.obj, { skipHistory: true });
+      if (before && cur) {
+        const after = objectsRef.current?.find((o) => o.key === transformKey);
+        if (after) {
+          pushHistory({
+            undo: [
+              {
+                kind: "restore" as const,
+                key: transformKey,
+                obj: before.obj,
+                sortOrder: before.sortOrder,
+              },
+            ],
+            redo: [
+              {
+                kind: "restore" as const,
+                key: transformKey,
+                obj: cloneObj(after.obj),
+                sortOrder: after.sortOrder,
+              },
+            ],
+          });
+        }
+      }
     }
 
     const draggedKey = dragObjectKey.current;
@@ -453,7 +477,7 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
         }
       }
 
-      const hit = hitObject(world.x, world.y, visible);
+      const hit = hitObject(world.x, world.y, visible, layersRef.current ?? []);
       if (hit) {
         selectHit(hit, e.shiftKey, e.ctrlKey);
         const lid = hit.obj.layerId ?? null;
@@ -771,7 +795,7 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
 
       const world = screenToWorld(pt.x, pt.y, stagePosRef.current!, scaleRef.current!);
       const visible = visibleObjects();
-      const hit = hitObject(world.x, world.y, visible);
+      const hit = hitObject(world.x, world.y, visible, layersRef.current ?? []);
 
       if (currentTool === "select" && selectedKey) {
         const sel = objectsRef.current?.find((o) => o.key === selectedKey);
@@ -1030,7 +1054,7 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
       const pt = getCanvasPoint(canvasRef.current, e.clientX, e.clientY);
       if (!pt) return;
       const world = screenToWorld(pt.x, pt.y, stagePosRef.current!, scaleRef.current!);
-      const hit = hitObject(world.x, world.y, visibleObjects());
+      const hit = hitObject(world.x, world.y, visibleObjects(), layersRef.current ?? []);
       if (hit) tryEditText(hit);
     },
     [editingKey, isCoarsePointer, canvasRef, stagePosRef, scaleRef, visibleObjects, tryEditText]
@@ -1038,24 +1062,27 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (editingKey || isCoarsePointer) {
+      if (editingKey) {
         e.preventDefault();
         return;
       }
-      if (isGrabbing) {
+      if (isCoarsePointer) {
+        e.preventDefault();
+        return;
+      }
+      if (isGrabbing && e.button !== 2) {
         e.preventDefault();
         return;
       }
       const pt = getCanvasPoint(canvasRef.current, e.clientX, e.clientY);
       if (!pt) return;
       const world = screenToWorld(pt.x, pt.y, stagePosRef.current!, scaleRef.current!);
-      const hit = hitObject(world.x, world.y, visibleObjects());
+      const hit = hitObject(world.x, world.y, visibleObjects(), layersRef.current ?? []);
       const resolved = resolveDesktopContextMenu({ hit, selectedKeys, selectedKey });
       if (resolved.selectKey) setSelectedKey(resolved.selectKey);
       if (resolved.selectKeys) setSelectedKeys(resolved.selectKeys);
       contextMenuKeysRef.current = resolved.menuKeys;
       onContextMenuKeysChange(resolved.menuKeys);
-      if (resolved.preventDefault) e.preventDefault();
     },
     [
       editingKey,
@@ -1065,6 +1092,7 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
       stagePosRef,
       scaleRef,
       visibleObjects,
+      layersRef,
       selectedKeys,
       selectedKey,
       setSelectedKey,

@@ -13,6 +13,8 @@ interface SessionChromeProps {
   inspectorOpen?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
   onDelete?: () => void;
   canDelete?: boolean;
   onAddPhoto?: (file: File) => void;
@@ -44,6 +46,8 @@ export function SessionChrome({
   inspectorOpen,
   onUndo,
   onRedo,
+  canUndo = false,
+  canRedo = false,
   onDelete,
   canDelete,
   onAddPhoto,
@@ -91,7 +95,14 @@ export function SessionChrome({
       )}
 
       {onUndo && (
-        <button type="button" onClick={onUndo} className="st-hud-btn" title="Отменить">
+        <button
+          type="button"
+          onClick={onUndo}
+          disabled={!canUndo}
+          className="st-hud-btn"
+          title="Отменить"
+          style={{ opacity: canUndo ? 1 : 0.4 }}
+        >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M3 7v6h6M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.36 2.64L3 13" />
           </svg>
@@ -99,7 +110,14 @@ export function SessionChrome({
       )}
 
       {onRedo && (
-        <button type="button" onClick={onRedo} className="st-hud-btn" title="Повторить">
+        <button
+          type="button"
+          onClick={onRedo}
+          disabled={!canRedo}
+          className="st-hud-btn"
+          title="Повторить"
+          style={{ opacity: canRedo ? 1 : 0.4 }}
+        >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 7v6h-6M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 13" />
           </svg>

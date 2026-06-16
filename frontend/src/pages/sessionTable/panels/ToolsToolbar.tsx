@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useCoarsePointer } from "../../../hooks/useCoarsePointer";
 import type { Tool } from "../../../tabletop/model";
 import { ShapeVariantRegistry, type ShapeVariantId } from "../../../tabletop/shapes";
 
@@ -45,26 +46,71 @@ function ChevronDownIcon() {
   );
 }
 
+function ShapeVariantList({
+  activeShapeVariant,
+  onPick,
+}: {
+  activeShapeVariant: ShapeVariantId;
+  onPick: (id: ShapeVariantId) => void;
+}) {
+  const shapeVariants = ShapeVariantRegistry.list();
+  return (
+    <>
+      {shapeVariants.map((variant) => (
+        <button
+          key={variant.id}
+          type="button"
+          className={[
+            "st-shape-dropdown-item",
+            activeShapeVariant === variant.id ? "st-shape-dropdown-item--active" : "",
+          ].join(" ")}
+          onClick={() => onPick(variant.id)}
+        >
+          {variant.id === "ellipse" ? <EllipseIcon /> : <RectangleIcon />}
+          {variant.label}
+        </button>
+      ))}
+    </>
+  );
+}
+
 export function ToolsToolbar({
   currentTool,
   onToolChange,
   activeShapeVariant,
   onShapeVariantChange,
 }: ToolsToolbarProps) {
+  const isCoarsePointer = useCoarsePointer();
   const [variantOpen, setVariantOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const shapeVariants = ShapeVariantRegistry.list();
 
   useEffect(() => {
     if (!variantOpen) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+    const closeIfOutside = (target: EventTarget | null) => {
+      if (dropdownRef.current && target && !dropdownRef.current.contains(target as Node)) {
         setVariantOpen(false);
       }
     };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    const onMouseDown = (e: MouseEvent) => closeIfOutside(e.target);
+    const onTouchStart = (e: TouchEvent) => closeIfOutside(e.target);
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("touchstart", onTouchStart);
+    };
   }, [variantOpen]);
+
+  const pickVariant = (id: ShapeVariantId) => {
+    onShapeVariantChange(id);
+    onToolChange("shape");
+    setVariantOpen(false);
+  };
+
+  const openVariantPicker = () => {
+    onToolChange("shape");
+    setVariantOpen((v) => !v);
+  };
 
   const ShapeIcon = activeShapeVariant === "ellipse" ? EllipseIcon : RectangleIcon;
 
@@ -80,50 +126,40 @@ export function ToolsToolbar({
           <SelectIcon />
         </button>
 
-        <div ref={dropdownRef} style={{ position: "relative", display: "flex", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", borderRadius: 8, overflow: "hidden" }}>
+        <div ref={dropdownRef} className="st-shape-tool-wrap">
+          {isCoarsePointer ? (
             <button
               type="button"
-              className={["st-tool-btn", currentTool === "shape" ? "st-tool-btn--active" : ""].join(" ")}
-              onClick={() => onToolChange("shape")}
-              title="Фигура"
+              className={["st-tool-btn st-shape-tool-btn", currentTool === "shape" ? "st-tool-btn--active" : ""].join(" ")}
+              onClick={openVariantPicker}
+              title="Фигура — выбрать форму"
             >
               <ShapeIcon />
             </button>
-            <button
-              type="button"
-              className={["st-tool-btn", currentTool === "shape" ? "st-tool-btn--active" : ""].join(" ")}
-              style={{ width: 20, borderLeft: "1px solid rgba(0,0,0,0.1)" }}
-              onClick={() => {
-                onToolChange("shape");
-                setVariantOpen((v) => !v);
-              }}
-              title="Выбрать форму"
-            >
-              <ChevronDownIcon />
-            </button>
-          </div>
+          ) : (
+            <div className="st-shape-tool-split">
+              <button
+                type="button"
+                className={["st-tool-btn", currentTool === "shape" ? "st-tool-btn--active" : ""].join(" ")}
+                onClick={() => onToolChange("shape")}
+                title="Фигура"
+              >
+                <ShapeIcon />
+              </button>
+              <button
+                type="button"
+                className={["st-tool-btn st-shape-chevron", currentTool === "shape" ? "st-tool-btn--active" : ""].join(" ")}
+                onClick={openVariantPicker}
+                title="Выбрать форму"
+              >
+                <ChevronDownIcon />
+              </button>
+            </div>
+          )}
 
           {variantOpen && (
             <div className="st-shape-dropdown dropdown-panel">
-              {shapeVariants.map((variant) => (
-                <button
-                  key={variant.id}
-                  type="button"
-                  className={[
-                    "st-shape-dropdown-item",
-                    activeShapeVariant === variant.id ? "st-shape-dropdown-item--active" : "",
-                  ].join(" ")}
-                  onClick={() => {
-                    onShapeVariantChange(variant.id);
-                    onToolChange("shape");
-                    setVariantOpen(false);
-                  }}
-                >
-                  {variant.id === "ellipse" ? <EllipseIcon /> : <RectangleIcon />}
-                  {variant.label}
-                </button>
-              ))}
+              <ShapeVariantList activeShapeVariant={activeShapeVariant} onPick={pickVariant} />
             </div>
           )}
         </div>
@@ -137,6 +173,13 @@ export function ToolsToolbar({
           <TextIcon />
         </button>
       </div>
+      {isCoarsePointer && variantOpen && (
+        <div
+          className="st-shape-backdrop"
+          aria-hidden
+          onClick={() => setVariantOpen(false)}
+        />
+      )}
     </div>
   );
 }
