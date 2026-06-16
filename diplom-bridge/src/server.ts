@@ -2,7 +2,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import cors from "cors";
 import { config } from "./config.js";
 import { connectDb, disconnectDb } from "./db.js";
-import { getServiceUserId, proxyRequest } from "./backendClient.js";
+import { checkMainApiAuth, getServiceUserId, proxyRequest } from "./backendClient.js";
 import { demoteBotFromSession, elevateBotForSession, withBotSessionAccess } from "./sessionAccess.js";
 
 const app = express();
@@ -29,6 +29,25 @@ function forwardResponse(res: Response, upstream: { status: number; data: unknow
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "diplom-bridge" });
+});
+
+app.get("/health/deep", async (_req, res) => {
+  const auth = await checkMainApiAuth();
+  if (!auth.ok) {
+    res.status(503).json({
+      ok: false,
+      service: "diplom-bridge",
+      mainApi: config.mainApiUrl,
+      error: auth.error,
+    });
+    return;
+  }
+  res.json({
+    ok: true,
+    service: "diplom-bridge",
+    mainApi: config.mainApiUrl,
+    serviceUserId: auth.userId,
+  });
 });
 
 app.use(requireBridgeKey);
@@ -145,11 +164,19 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 
 async function main() {
   await connectDb();
-  app.listen(config.port, () => {
-    console.log(`Diplom Bridge listening on port ${config.port}`);
+  const host = config.bindHost;
+  app.listen(config.port, host, async () => {
+    console.log(`Diplom Bridge listening on http://${host}:${config.port}`);
     console.log(`Main API: ${config.mainApiUrl}`);
     console.log(`Service user: ${config.serviceEmail}`);
     console.log(`Auto leave after request: ${config.autoLeaveAfterRequest}`);
+
+    const auth = await checkMainApiAuth();
+    if (auth.ok) {
+      console.log(`Main API auth OK (userId=${auth.userId})`);
+    } else {
+      console.error(`Main API auth FAILED: ${auth.error}`);
+    }
   });
 }
 

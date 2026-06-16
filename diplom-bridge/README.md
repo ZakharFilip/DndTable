@@ -46,11 +46,14 @@ npm -w backend run seed:support-bot
 ```bash
 cd diplom-bridge
 cp .env.example .env
+# production: cp .env.production.example .env
 npm install
 npm run dev
 ```
 
-По умолчанию мост слушает **порт 4010**.
+По умолчанию мост слушает **порт 4010** на `0.0.0.0`.
+
+**Production:** см. [DEPLOY-PRODUCTION.md](./DEPLOY-PRODUCTION.md) — там `MAIN_API_URL=https://kabantable.space` и проверка `/health/deep`.
 
 ## Настройка Diplom
 

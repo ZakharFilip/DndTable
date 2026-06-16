@@ -4,6 +4,7 @@ dotenv.config();
 
 export const config = {
   port: Number(process.env.DIPLOM_BRIDGE_PORT ?? 4010),
+  bindHost: process.env.DIPLOM_BRIDGE_BIND ?? "0.0.0.0",
   mainApiUrl: (process.env.MAIN_API_URL ?? "http://localhost:4000").replace(/\/$/, ""),
   mongoUri: process.env.MONGODB_URI ?? "mongodb://localhost:27017/dndtable",
   serviceEmail: process.env.SERVICE_EMAIL ?? "aisuppurt@bot.bot.bot",
