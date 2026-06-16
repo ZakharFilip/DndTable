@@ -74,6 +74,13 @@ function ShapeVariantList({
   );
 }
 
+function nextShapeVariant(current: ShapeVariantId): ShapeVariantId {
+  const variants = ShapeVariantRegistry.list();
+  const index = variants.findIndex((v) => v.id === current);
+  const next = variants[(index + 1) % variants.length];
+  return next?.id ?? current;
+}
+
 export function ToolsToolbar({
   currentTool,
   onToolChange,
@@ -82,15 +89,14 @@ export function ToolsToolbar({
 }: ToolsToolbarProps) {
   const isCoarsePointer = useCoarsePointer();
   const [variantOpen, setVariantOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!variantOpen) return;
     let cleanup: (() => void) | undefined;
-    // Defer so the same tap that opened the menu does not immediately close it.
     const timer = window.setTimeout(() => {
       const closeIfOutside = (target: EventTarget | null) => {
-        if (dropdownRef.current && target && !dropdownRef.current.contains(target as Node)) {
+        if (anchorRef.current && target && !anchorRef.current.contains(target as Node)) {
           setVariantOpen(false);
         }
       };
@@ -120,10 +126,41 @@ export function ToolsToolbar({
     setVariantOpen((v) => !v);
   };
 
+  const handleShapeButtonClick = () => {
+    if (isCoarsePointer && currentTool === "shape") {
+      onShapeVariantChange(nextShapeVariant(activeShapeVariant));
+      setVariantOpen(false);
+      return;
+    }
+    onToolChange("shape");
+  };
+
   const ShapeIcon = activeShapeVariant === "ellipse" ? EllipseIcon : RectangleIcon;
+  const shapeTitle = isCoarsePointer
+    ? currentTool === "shape"
+      ? "Сменить форму (квадрат / эллипс)"
+      : "Фигура"
+    : "Фигура";
 
   return (
-    <div className="st-toolbar-anchor">
+    <div
+      ref={anchorRef}
+      className={["st-toolbar-anchor", variantOpen ? "st-toolbar-anchor--picker-open" : ""].join(" ")}
+    >
+      {variantOpen && (
+        <div
+          className="st-shape-backdrop"
+          aria-hidden
+          onClick={() => setVariantOpen(false)}
+        />
+      )}
+
+      {variantOpen && (
+        <div className="st-shape-dropdown dropdown-panel" role="listbox">
+          <ShapeVariantList activeShapeVariant={activeShapeVariant} onPick={pickVariant} />
+        </div>
+      )}
+
       <div className="st-toolbar">
         <button
           type="button"
@@ -134,13 +171,13 @@ export function ToolsToolbar({
           <SelectIcon />
         </button>
 
-        <div ref={dropdownRef} className="st-shape-tool-wrap">
+        <div className="st-shape-tool-wrap">
           <div className="st-shape-tool-split">
             <button
               type="button"
               className={["st-tool-btn", currentTool === "shape" ? "st-tool-btn--active" : ""].join(" ")}
-              onClick={() => onToolChange("shape")}
-              title="Фигура"
+              onClick={handleShapeButtonClick}
+              title={shapeTitle}
             >
               <ShapeIcon />
             </button>
@@ -162,12 +199,6 @@ export function ToolsToolbar({
               <ChevronDownIcon />
             </button>
           </div>
-
-          {variantOpen && (
-            <div className="st-shape-dropdown dropdown-panel" role="listbox">
-              <ShapeVariantList activeShapeVariant={activeShapeVariant} onPick={pickVariant} />
-            </div>
-          )}
         </div>
 
         <button
@@ -179,13 +210,6 @@ export function ToolsToolbar({
           <TextIcon />
         </button>
       </div>
-      {isCoarsePointer && variantOpen && (
-        <div
-          className="st-shape-backdrop"
-          aria-hidden
-          onClick={() => setVariantOpen(false)}
-        />
-      )}
     </div>
   );
 }

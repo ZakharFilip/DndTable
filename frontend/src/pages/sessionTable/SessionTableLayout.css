@@ -116,8 +116,22 @@
   bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   z-index: 40;
-  pointer-events: auto;
+  pointer-events: none;
   max-width: calc(100vw - 16px);
+}
+
+.st-toolbar-anchor--picker-open {
+  z-index: 70;
+}
+
+.st-toolbar-anchor > .st-toolbar {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.st-toolbar-anchor > .st-shape-dropdown {
+  pointer-events: auto;
 }
 
 .st-shape-tool-wrap {
@@ -146,8 +160,9 @@
 .st-shape-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 49;
+  z-index: 0;
   background: transparent;
+  pointer-events: auto;
 }
 
 .st-toolbar {
@@ -297,16 +312,16 @@
 
 .st-shape-dropdown {
   position: absolute;
-  bottom: 100%;
-  left: 0;
-  margin-bottom: 8px;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
   min-width: 140px;
   background: var(--ds-color-surface-raised);
   border-radius: var(--ds-radius-md);
   border: 1px solid var(--ds-color-structure-muted);
   box-shadow: var(--ds-shadow-elevated);
   padding: 4px;
-  z-index: 55;
+  z-index: 2;
   animation: ds-fade-in var(--ds-duration-normal) var(--ds-ease-standard),
     slide-down var(--ds-duration-fast) ease;
   transform-origin: bottom center;
@@ -488,10 +503,11 @@
     z-index: 55;
   }
 
+  .st-toolbar-anchor--picker-open {
+    z-index: 70;
+  }
+
   .st-shape-dropdown {
-    z-index: 60;
-    left: 50%;
-    transform: translateX(-50%);
     min-width: min(200px, calc(100vw - 32px));
   }
 
@@ -506,6 +522,7 @@
 
   .st-toolbar {
     overflow-x: auto;
+    overflow-y: visible;
     max-width: 100%;
   }
 
