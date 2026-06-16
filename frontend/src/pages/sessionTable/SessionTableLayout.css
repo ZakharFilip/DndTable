@@ -136,10 +136,11 @@
 .st-shape-chevron {
   width: 28px !important;
   border-left: 1px solid rgba(0, 0, 0, 0.1);
+  touch-action: manipulation;
 }
 
-.st-shape-tool-btn {
-  min-width: 44px;
+.st-shape-chevron--open svg {
+  transform: rotate(180deg);
 }
 
 .st-shape-backdrop {
@@ -492,6 +493,15 @@
     left: 50%;
     transform: translateX(-50%);
     min-width: min(200px, calc(100vw - 32px));
+  }
+
+  .st-shape-chevron {
+    width: 40px !important;
+    min-width: 40px;
+  }
+
+  .st-shape-dropdown-item {
+    min-height: 44px;
   }
 
   .st-toolbar {

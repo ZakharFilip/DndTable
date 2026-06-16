@@ -86,18 +86,26 @@ export function ToolsToolbar({
 
   useEffect(() => {
     if (!variantOpen) return;
-    const closeIfOutside = (target: EventTarget | null) => {
-      if (dropdownRef.current && target && !dropdownRef.current.contains(target as Node)) {
-        setVariantOpen(false);
-      }
-    };
-    const onMouseDown = (e: MouseEvent) => closeIfOutside(e.target);
-    const onTouchStart = (e: TouchEvent) => closeIfOutside(e.target);
-    document.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    let cleanup: (() => void) | undefined;
+    // Defer so the same tap that opened the menu does not immediately close it.
+    const timer = window.setTimeout(() => {
+      const closeIfOutside = (target: EventTarget | null) => {
+        if (dropdownRef.current && target && !dropdownRef.current.contains(target as Node)) {
+          setVariantOpen(false);
+        }
+      };
+      const onMouseDown = (e: MouseEvent) => closeIfOutside(e.target);
+      const onTouchStart = (e: TouchEvent) => closeIfOutside(e.target);
+      document.addEventListener("mousedown", onMouseDown);
+      document.addEventListener("touchstart", onTouchStart, { passive: true });
+      cleanup = () => {
+        document.removeEventListener("mousedown", onMouseDown);
+        document.removeEventListener("touchstart", onTouchStart);
+      };
+    }, 0);
     return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("touchstart", onTouchStart);
+      window.clearTimeout(timer);
+      cleanup?.();
     };
   }, [variantOpen]);
 
@@ -127,38 +135,36 @@ export function ToolsToolbar({
         </button>
 
         <div ref={dropdownRef} className="st-shape-tool-wrap">
-          {isCoarsePointer ? (
+          <div className="st-shape-tool-split">
             <button
               type="button"
-              className={["st-tool-btn st-shape-tool-btn", currentTool === "shape" ? "st-tool-btn--active" : ""].join(" ")}
-              onClick={openVariantPicker}
-              title="Фигура — выбрать форму"
+              className={["st-tool-btn", currentTool === "shape" ? "st-tool-btn--active" : ""].join(" ")}
+              onClick={() => onToolChange("shape")}
+              title="Фигура"
             >
               <ShapeIcon />
             </button>
-          ) : (
-            <div className="st-shape-tool-split">
-              <button
-                type="button"
-                className={["st-tool-btn", currentTool === "shape" ? "st-tool-btn--active" : ""].join(" ")}
-                onClick={() => onToolChange("shape")}
-                title="Фигура"
-              >
-                <ShapeIcon />
-              </button>
-              <button
-                type="button"
-                className={["st-tool-btn st-shape-chevron", currentTool === "shape" ? "st-tool-btn--active" : ""].join(" ")}
-                onClick={openVariantPicker}
-                title="Выбрать форму"
-              >
-                <ChevronDownIcon />
-              </button>
-            </div>
-          )}
+            <button
+              type="button"
+              className={[
+                "st-tool-btn st-shape-chevron",
+                currentTool === "shape" ? "st-tool-btn--active" : "",
+                variantOpen ? "st-shape-chevron--open" : "",
+              ].join(" ")}
+              onClick={(e) => {
+                e.stopPropagation();
+                openVariantPicker();
+              }}
+              title="Выбрать форму"
+              aria-expanded={variantOpen}
+              aria-haspopup="listbox"
+            >
+              <ChevronDownIcon />
+            </button>
+          </div>
 
           {variantOpen && (
-            <div className="st-shape-dropdown dropdown-panel">
+            <div className="st-shape-dropdown dropdown-panel" role="listbox">
               <ShapeVariantList activeShapeVariant={activeShapeVariant} onPick={pickVariant} />
             </div>
           )}
