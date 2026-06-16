@@ -11,6 +11,12 @@ type PatchAck = {
   error?: string;
   message?: string;
   applied?: AppliedOp[];
+  conflicts?: Array<{
+    opId: string;
+    key: string;
+    expectedVersion: number;
+    actualVersion: number | null;
+  }>;
 };
 
 function mergeUpdateIntoCreate(create: TablePatchOp, update: TablePatchOp) {
@@ -187,6 +193,9 @@ export class TableSync {
           return;
         }
         if (ack?.status === 409 || ack?.error === "VERSION_CONFLICT") {
+          if (ack.conflicts?.length) {
+            console.warn("[TableSync] VERSION_CONFLICT", ack.conflicts);
+          }
           this.params.setStatus("conflict");
           for (const op of batch) {
             if (op.action === "create") this.inFlightCreates.delete(op.key);

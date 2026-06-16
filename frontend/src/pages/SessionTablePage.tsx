@@ -62,8 +62,8 @@ export default function SessionTablePage() {
   const localEditBeforeRef = useRef(
     new Map<string, { obj: TabletopBaseObject; sortOrder: number }>()
   );
-  const noteCreatesAckedRef = useRef<(applied: AppliedOp[]) => void>(() => {});
   const resetUnackedCreatesRef = useRef<() => void>(() => {});
+  const onBroadcastImplRef = useRef<(applied: AppliedOp[]) => void>(() => {});
   const stagePosRef = useRef(stagePos);
   const scaleRef = useRef(scale);
   const stageSizeRef = useRef(stageSize);
@@ -185,18 +185,10 @@ export default function SessionTablePage() {
     if (parsed) applyDataWithHistoryClear(parsed);
   }, [fetchFull, applyDataWithHistoryClear]);
 
-  const onBroadcast = useCallback((applied: AppliedOp[]) => {
-    noteCreatesAckedRef.current(applied);
-    setLayers((prev) => applyBroadcastToLayers(prev, applied));
-    setObjects((prev) => {
-      const next = applyBroadcastToObjects(prev, applied);
-      objectsRef.current = next;
-      return next;
-    });
-    if (appliedOpsIncludeSprites(applied)) {
-      setImageTick((t) => t + 1);
-    }
-  }, []);
+  const onBroadcast = useCallback(
+    (applied: AppliedOp[]) => onBroadcastImplRef.current(applied),
+    []
+  );
 
   const { syncStatus, enqueueOps, flushNow } = useTableSync({
     id,
@@ -246,10 +238,19 @@ export default function SessionTablePage() {
     canPerform: sessionAccess.can,
   });
 
-  useEffect(() => {
-    noteCreatesAckedRef.current = noteCreatesAcked;
-    resetUnackedCreatesRef.current = resetUnackedCreates;
-  }, [noteCreatesAcked, resetUnackedCreates]);
+  onBroadcastImplRef.current = (applied) => {
+    noteCreatesAcked(applied);
+    setLayers((prev) => applyBroadcastToLayers(prev, applied));
+    setObjects((prev) => {
+      const next = applyBroadcastToObjects(prev, applied);
+      objectsRef.current = next;
+      return next;
+    });
+    if (appliedOpsIncludeSprites(applied)) {
+      setImageTick((t) => t + 1);
+    }
+  };
+  resetUnackedCreatesRef.current = resetUnackedCreates;
 
   const undo = useCallback(() => undoHistory(applyHistoryOps), [undoHistory, applyHistoryOps]);
   const redo = useCallback(() => redoHistory(applyHistoryOps), [redoHistory, applyHistoryOps]);

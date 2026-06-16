@@ -5,7 +5,7 @@ import type { HistoryEntry, HistoryOp } from "../../../tabletop/history/HistoryM
 import { historyEntry, layersOp, restoreOp } from "../../../tabletop/history/historyHelpers";
 import type { AppliedOp, TablePatchOp } from "../../../tabletop/realtime/TableSync";
 import type { Layer, TableObjectState } from "../../../tabletop/model";
-import { cloneObj, newOpId } from "../helpers";
+import { cloneObj, newOpId, transformPositionPatch } from "../helpers";
 
 interface UseObjectMutationsParams {
   enqueueOps: (ops: TablePatchOp[]) => void;
@@ -351,11 +351,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
               action: "update" as const,
               key: o.key,
               baseVersion: o.version,
-              patch: {
-                x: latest.obj.transform.position.x,
-                y: latest.obj.transform.position.y,
-                props: latest.obj as unknown as Record<string, unknown>,
-              },
+              patch: transformPositionPatch(latest.obj),
             };
           })
         );
@@ -375,11 +371,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
               action: "update" as const,
               key: o.key,
               baseVersion: o.version,
-              patch: {
-                x: latest.obj.transform.position.x,
-                y: latest.obj.transform.position.y,
-                props: latest.obj as unknown as Record<string, unknown>,
-              },
+              patch: transformPositionPatch(latest.obj),
             };
           })
         );

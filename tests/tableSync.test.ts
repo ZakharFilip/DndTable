@@ -94,4 +94,66 @@ describe("TableSync", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("logs conflicts on VERSION_CONFLICT", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const timeouts: Array<() => void> = [];
+    vi.stubGlobal("window", {
+      setTimeout: (fn: () => void) => {
+        timeouts.push(fn);
+        return timeouts.length;
+      },
+      clearTimeout: () => {},
+    });
+
+    const socket = {
+      emit: vi.fn(
+        (
+          _event: string,
+          _payload: unknown,
+          ack?: (resp: {
+            status: number;
+            error: string;
+            conflicts: Array<{ key: string }>;
+          }) => void
+        ) => {
+          ack?.({
+            status: 409,
+            error: "VERSION_CONFLICT",
+            conflicts: [{ key: "shape-1" }],
+          });
+        }
+      ),
+      on: vi.fn(),
+      off: vi.fn(),
+    } as unknown as import("socket.io-client").Socket;
+
+    const sync = new TableSync({
+      tableId: "t1",
+      clientId: "c1",
+      socket,
+      setStatus: () => {},
+      onConflict: async () => {},
+      onBroadcast: () => {},
+    });
+
+    sync.enqueue([
+      {
+        opId: "u1",
+        action: "update",
+        key: "shape-1",
+        baseVersion: 1,
+        patch: { x: 1, y: 2 },
+      },
+    ]);
+    timeouts.splice(0).forEach((fn) => fn());
+
+    expect(warn).toHaveBeenCalledWith(
+      "[TableSync] VERSION_CONFLICT",
+      expect.arrayContaining([expect.objectContaining({ key: "shape-1" })])
+    );
+
+    warn.mockRestore();
+    vi.unstubAllGlobals();
+  });
 });

@@ -16,6 +16,24 @@ import { isTextInput } from "../../../utils/isTextInput";
 import { prepareSpriteForSync, spriteUploadErrorMessage } from "../../../api/sessionSprites";
 import { CLIP_PREFIX, fitImageDimensions, loadImageNaturalSize } from "../helpers";
 
+/** Upload data-URL sprites before create; returns null on failure. */
+export async function sanitizePastedObjectSprite(
+  sessionId: string,
+  obj: TabletopBaseObject
+): Promise<TabletopBaseObject | null> {
+  const sprite = obj.appearance?.sprite;
+  if (typeof sprite !== "string" || !sprite.startsWith("data:")) return obj;
+  try {
+    const syncSprite = await prepareSpriteForSync(sessionId, sprite);
+    return {
+      ...obj,
+      appearance: { ...obj.appearance, sprite: syncSprite },
+    };
+  } catch {
+    return null;
+  }
+}
+
 interface UseCopyPasteParams {
   id: string | undefined;
   editingKey: string | null;
@@ -166,7 +184,7 @@ export function useCopyPaste(params: UseCopyPasteParams) {
   }, [copyKeys, selectedKeys, primaryKey]);
 
   const pasteFromText = useCallback(
-    (text: string): boolean => {
+    async (text: string): Promise<boolean> => {
       if (!id) return false;
       if (!text.startsWith(CLIP_PREFIX)) return false;
       const raw = text.slice(CLIP_PREFIX.length);
@@ -196,15 +214,27 @@ export function useCopyPaste(params: UseCopyPasteParams) {
         }
         const key = nextObjectKey((src as TabletopBaseObject).type);
         const pos = (src.transform?.position ?? { x: 0, y: 0 }) as { x?: number; y?: number };
-        const nextObj: TabletopBaseObject = {
+        let nextObj: TabletopBaseObject = {
           ...(JSON.parse(JSON.stringify(src)) as TabletopBaseObject),
           id: key,
           groupId: null,
+          ownerUserId: null,
           transform: {
             ...src.transform,
             position: { ...pos, x: (pos.x ?? 0) + dx, y: (pos.y ?? 0) + dy },
           } as TabletopBaseObject["transform"],
         };
+
+        const sprite = nextObj.appearance?.sprite;
+        if (typeof sprite === "string" && sprite.startsWith("data:")) {
+          const sanitized = await sanitizePastedObjectSprite(id, nextObj);
+          if (!sanitized) {
+            onSpriteError?.("Не удалось загрузить изображение при вставке");
+            continue;
+          }
+          nextObj = sanitized;
+        }
+
         batch.push({ key, obj: nextObj });
       }
 
@@ -216,7 +246,7 @@ export function useCopyPaste(params: UseCopyPasteParams) {
       }
       return batch.length > 0;
     },
-    [id, scaleRef, createObjectsBatch, setSelectedKey, setSelectedKeys]
+    [id, scaleRef, createObjectsBatch, setSelectedKey, setSelectedKeys, onSpriteError]
   );
 
   const pasteSelection = useCallback(async () => {
@@ -224,7 +254,7 @@ export function useCopyPaste(params: UseCopyPasteParams) {
     const mem = memoryClipboardRef.current ?? "";
     const text = sys && sys.startsWith(CLIP_PREFIX) ? sys : mem;
     if (!text) return;
-    pasteFromText(text);
+    await pasteFromText(text);
   }, [pasteFromText]);
 
   // window 'copy' — write our payload to clipboardData
@@ -262,8 +292,8 @@ export function useCopyPaste(params: UseCopyPasteParams) {
 
       const plain = e.clipboardData?.getData("text/plain") ?? "";
       if (plain.startsWith(CLIP_PREFIX)) {
-        const ok = pasteFromText(plain);
-        if (ok) e.preventDefault();
+        e.preventDefault();
+        void pasteFromText(plain);
         return;
       }
 

@@ -139,6 +139,13 @@ export function cloneObj(o: TabletopBaseObject): TabletopBaseObject {
   return JSON.parse(JSON.stringify(o)) as TabletopBaseObject;
 }
 
+export function transformPositionPatch(obj: TabletopBaseObject): { x: number; y: number } {
+  return {
+    x: obj.transform.position.x,
+    y: obj.transform.position.y,
+  };
+}
+
 function propsHaveSprite(props: Record<string, unknown> | undefined): boolean {
   if (!props || typeof props !== "object") return false;
   const appearance = (props as { appearance?: { sprite?: unknown } }).appearance;

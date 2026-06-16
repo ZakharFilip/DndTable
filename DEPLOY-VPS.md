@@ -567,9 +567,18 @@ pm2 restart dndtable-api
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-**Только фронтенд** (backend не менялся): `pm2 restart` не нужен — достаточно `npm install`, `npm run build` и `sudo systemctl reload nginx`. В браузере сделайте hard refresh (Ctrl+F5) из-за кэша статики.
+**Проверка, что на сервере новый фронтенд-бандл** (после `npm run build`):
 
-sudo systemctl reload nginx
+```bash
+grep -l "deferredUpdates" /opt/dndtable/frontend/dist/assets/*.js
+ls -la /opt/dndtable/frontend/dist/assets/index-*.js
+```
+
+В DevTools → Network имя `index-*.js` должно совпадать с файлом на диске. Если после деплоя поведение старое — hard refresh (Ctrl+F5) или DevTools → Disable cache.
+
+**Кэш Nginx:** в [dndtable.kabantable.conf.example](infra/nginx/dndtable.kabantable.conf.example) для `index.html` задан `Cache-Control: no-cache`, для `/assets/` — `immutable` (хеш в имени файла). После обновления конфига: `sudo cp .../dndtable.kabantable.conf.example /etc/nginx/sites-available/dndtable` и `sudo systemctl reload nginx`.
+
+**Только фронтенд** (backend не менялся): `pm2 restart` не нужен — достаточно `npm install`, `npm run build` и `sudo systemctl reload nginx`. В браузере сделайте hard refresh (Ctrl+F5) из-за кэша статики.
 
 После обновления nginx-конфига убедитесь, что есть отдельный блок `location /session-sprites/` **перед** `location /` (иначе браузер получит `index.html` вместо JPEG).
 
