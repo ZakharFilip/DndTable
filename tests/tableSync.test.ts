@@ -290,6 +290,56 @@ describe("TableSync", () => {
     timers.restore();
   });
 
+  it("merges duplicate pending updates for the same key", () => {
+    const timers = stubWindowTimers();
+
+    let capturedOps: unknown;
+    const socket = {
+      emit: vi.fn((_event: string, payload: { ops: unknown[] }, ack?: (resp: unknown) => void) => {
+        capturedOps = payload.ops;
+        ack?.({ success: true, applied: [] });
+      }),
+      on: vi.fn(),
+      off: vi.fn(),
+    } as unknown as import("socket.io-client").Socket;
+
+    const sync = new TableSync({
+      tableId: "t1",
+      clientId: "c1",
+      socket,
+      setStatus: () => {},
+      onConflict: async () => {},
+      onBroadcast: () => {},
+    });
+
+    sync.enqueue([
+      {
+        opId: "u1",
+        action: "update",
+        key: "shape-1",
+        baseVersion: 1,
+        patch: { x: 10, y: 20 },
+      },
+    ]);
+    sync.enqueue([
+      {
+        opId: "u2",
+        action: "update",
+        key: "shape-1",
+        baseVersion: 1,
+        patch: { x: 99, y: 88 },
+      },
+    ]);
+    timers.flush();
+
+    const ops = capturedOps as Array<{ action: string; patch?: { x: number; y: number } }>;
+    expect(ops).toHaveLength(1);
+    expect(ops[0]?.patch?.x).toBe(99);
+    expect(ops[0]?.patch?.y).toBe(88);
+
+    timers.restore();
+  });
+
   it("requeues batch after 409 when op was not in conflict list", async () => {
     const timers = stubWindowTimers();
 

@@ -237,6 +237,14 @@ export class TableSync {
         mergeUpdateIntoCreate(this.pending[pendingCreateIdx], op);
         return;
       }
+      const pendingUpdateIdx = this.pending.findIndex(
+        (p) => p.action === "update" && p.key === op.key
+      );
+      if (pendingUpdateIdx >= 0) {
+        const prev = this.pending[pendingUpdateIdx];
+        this.pending[pendingUpdateIdx] = mergeDeferredUpdate(prev, op);
+        return;
+      }
       if (this.inFlightCreates.has(op.key)) {
         const prev = this.deferredUpdates.get(op.key);
         this.deferredUpdates.set(op.key, mergeDeferredUpdate(prev, op));
@@ -247,7 +255,15 @@ export class TableSync {
   }
 
   flushNow() {
+    if (this.debounceTimer) {
+      window.clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
     void this.flush();
+  }
+
+  hasDeferredUpdate(key: string): boolean {
+    return this.deferredUpdates.has(key);
   }
 
   drainPayload() {
@@ -283,7 +299,19 @@ export class TableSync {
       if (!deferred) continue;
       this.deferredUpdates.delete(op.key);
       if (deferred.action === "update") {
-        this.pending.push({ ...deferred, baseVersion: op.version });
+        const released: TablePatchOp = { ...deferred, baseVersion: op.version };
+        const pendingUpdateIdx = this.pending.findIndex(
+          (p) => p.action === "update" && p.key === op.key
+        );
+        if (pendingUpdateIdx >= 0) {
+          const prev = this.pending[pendingUpdateIdx];
+          const merged = mergeDeferredUpdate(released, prev);
+          if (merged.action === "update") {
+            this.pending[pendingUpdateIdx] = { ...merged, baseVersion: op.version };
+          }
+        } else {
+          this.pending.push(released);
+        }
       }
     }
   }

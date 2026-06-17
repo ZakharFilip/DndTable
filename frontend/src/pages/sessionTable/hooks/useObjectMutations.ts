@@ -20,6 +20,7 @@ import { cloneObj, newOpId } from "../helpers";
 
 interface UseObjectMutationsParams {
   enqueueOps: (ops: TablePatchOp[]) => void;
+  flushNow: () => void;
   amendUnackedUpdate: (key: string, patch: UpdatePatch) => AmendUnackedResult;
   upsertUnackedCreate: (key: string, object: UnackedObjectDto) => "pending" | "deferred" | "skipped_in_flight";
   cancelUnackedCreate: (key: string) => void;
@@ -176,6 +177,7 @@ function syncLayersToServer(
 export function useObjectMutations(params: UseObjectMutationsParams) {
   const {
     enqueueOps,
+    flushNow,
     amendUnackedUpdate,
     upsertUnackedCreate,
     cancelUnackedCreate,
@@ -257,6 +259,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
           },
         },
       ]);
+      flushNow();
 
       if (!opts?.skipHistory) {
         pushHistory(
@@ -267,7 +270,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         );
       }
     },
-    [activeLayerId, canPerform, enqueueOps, pushHistory, objectsRef, setObjects, setSelectedKey, setSelectedKeys, onPropsSyncRejected]
+    [activeLayerId, canPerform, enqueueOps, flushNow, pushHistory, objectsRef, setObjects, setSelectedKey, setSelectedKeys, onPropsSyncRejected]
   );
 
   const createObjectsBatch = useCallback(
@@ -319,6 +322,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       if (ops.length === 0) return;
 
       enqueueOps(ops);
+      flushNow();
 
       const syncedKeys = new Set(ops.map((op) => op.key));
       const syncedCreated = created.filter((c) => syncedKeys.has(c.key));
@@ -335,7 +339,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         )
       );
     },
-    [activeLayerId, canPerform, enqueueOps, pushHistory, objectsRef, setObjects, onPropsSyncRejected]
+    [activeLayerId, canPerform, enqueueOps, flushNow, pushHistory, objectsRef, setObjects, onPropsSyncRejected]
   );
 
   const commitObject = useCallback(
@@ -464,6 +468,9 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       for (const { key, plan } of unacked) {
         syncUnackedChange(key, plan, objectsRef, amendUnackedUpdate, upsertUnackedCreate);
       }
+      if (unacked.length > 0) {
+        flushNow();
+      }
 
       if (acked.length > 0) {
         const keySet = new Set(acked.map(({ key }) => key));
@@ -475,7 +482,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
 
       void opts;
     },
-    [amendUnackedUpdate, canPerform, enqueueOps, objectsRef, planner, setObjects, upsertUnackedCreate]
+    [amendUnackedUpdate, canPerform, enqueueOps, flushNow, objectsRef, planner, setObjects, upsertUnackedCreate]
   );
 
   const deleteObject = useCallback(

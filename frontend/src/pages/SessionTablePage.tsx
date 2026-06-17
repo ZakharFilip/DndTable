@@ -191,48 +191,52 @@ export default function SessionTablePage() {
     const pendingBefore = getPendingCreateKeysRef.current();
     const localUnacked = objectsRef.current.filter((o) => pendingBefore.includes(o.key));
     const localSnap = new Map(localUnacked.map((o) => [o.key, o]));
+    const conflictKeys = new Set(conflicts.map((c) => c.key));
 
     const parsed = await fetchFull();
     if (!parsed) return;
 
-    if (parsed.viewport) {
-      setStagePos({ x: parsed.viewport.panX, y: parsed.viewport.panY });
-      setScale(parsed.viewport.scale);
-    }
-    const { layers: resolvedLayers, shouldSyncDefaultLayer } = resolveLayersFromSession(
-      parsed.layers,
-      parsed.objects
-    );
-    shouldSyncDefaultLayerRef.current = shouldSyncDefaultLayer;
-    setLayers(resolvedLayers);
-    layersRef.current = resolvedLayers;
-    setActiveLayerId((prev) => prev ?? resolvedLayers[0]?.id ?? null);
+    const serverByKey = new Map(parsed.objects.map((o) => [o.key, o]));
 
-    const serverKeys = new Set(parsed.objects.map((o) => o.key));
-    const preserved = localUnacked.filter((o) => !serverKeys.has(o.key));
-    const mergedObjects = [...parsed.objects, ...preserved];
-    setObjects(mergedObjects);
-    objectsRef.current = mergedObjects;
+    const nextObjects = objectsRef.current.map((local) => {
+      if (!conflictKeys.has(local.key)) return local;
+
+      const server = serverByKey.get(local.key);
+      const conflict = conflicts.find((c) => c.key === local.key);
+
+      if (!server) {
+        if (pendingBefore.includes(local.key)) return local;
+        return local;
+      }
+
+      if (conflict?.actualVersion != null) {
+        return { ...server, version: conflict.actualVersion };
+      }
+
+      return server;
+    });
+
+    for (const local of localUnacked) {
+      if (!serverByKey.has(local.key) && !nextObjects.some((o) => o.key === local.key)) {
+        nextObjects.push(local);
+      }
+    }
+
+    setObjects(nextObjects);
+    objectsRef.current = nextObjects;
     localEditBeforeRef.current.clear();
 
     resetUnackedCreatesRef.current();
-    if (preserved.length > 0) {
-      registerUnackedCreatesRef.current(preserved.map((o) => o.key));
+    const stillUnacked = nextObjects
+      .filter((o) => pendingBefore.includes(o.key) && !serverByKey.has(o.key))
+      .map((o) => o.key);
+    if (stillUnacked.length > 0) {
+      registerUnackedCreatesRef.current(stillUnacked);
     }
 
-    sessionAccess.setFromFull(parsed.access, parsed.viewer);
-
     for (const c of conflicts) {
-      if (c.actualVersion !== null) {
-        const actual = c.actualVersion;
-        setObjects((prev) => {
-          const next = prev.map((o) => (o.key === c.key ? { ...o, version: actual } : o));
-          objectsRef.current = next;
-          return next;
-        });
-        continue;
-      }
-      const local = localSnap.get(c.key);
+      if (c.actualVersion !== null) continue;
+      const local = localSnap.get(c.key) ?? nextObjects.find((o) => o.key === c.key);
       if (!local) continue;
       const sanitized = sanitizePropsForSync(local.obj);
       if (!sanitized.ok) continue;
@@ -246,7 +250,7 @@ export default function SessionTablePage() {
       registerUnackedCreatesRef.current([c.key]);
     }
 
-    const lost = pendingBefore.filter((k) => !mergedObjects.some((o) => o.key === k));
+    const lost = pendingBefore.filter((k) => !nextObjects.some((o) => o.key === k));
     if (lost.length > 0) {
       setSpriteError(
         "Объект ещё сохранялся на сервере. Подождите синхронизацию и повторите действие."
@@ -254,7 +258,7 @@ export default function SessionTablePage() {
     }
 
     flushNowRef.current();
-  }, [fetchFull, sessionAccess.setFromFull]);
+  }, [fetchFull]);
 
   const onBroadcast = useCallback(
     (applied: AppliedOp[]) => onBroadcastImplRef.current(applied),
@@ -310,6 +314,7 @@ export default function SessionTablePage() {
     getPendingCreateKeys,
   } = useObjectMutations({
     enqueueOps,
+    flushNow,
     amendUnackedUpdate,
     upsertUnackedCreate,
     cancelUnackedCreate,
