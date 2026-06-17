@@ -5,32 +5,71 @@ export type { AppliedOp, TablePatchOp } from "@dnd-table/shared";
 
 export type SyncStatus = "idle" | "syncing" | "ok" | "error" | "conflict";
 
+export type PatchConflict = {
+  opId: string;
+  key: string;
+  expectedVersion: number;
+  actualVersion: number | null;
+};
+
+export type UnackedObjectDto = {
+  type: string;
+  x: number;
+  y: number;
+  sortOrder?: number;
+  props?: Record<string, unknown>;
+};
+
+export type AmendUnackedResult = "merged" | "deferred" | "no_target";
+
 type PatchAck = {
   success?: boolean;
   status?: number;
   error?: string;
   message?: string;
   applied?: AppliedOp[];
-  conflicts?: Array<{
-    opId: string;
-    key: string;
-    expectedVersion: number;
-    actualVersion: number | null;
-  }>;
+  conflicts?: PatchConflict[];
 };
 
-function mergeUpdateIntoCreate(create: TablePatchOp, update: TablePatchOp) {
-  if (create.action !== "create" || update.action !== "update") return;
-  const patch = update.patch;
+type UpdatePatch = {
+  x?: number;
+  y?: number;
+  sortOrder?: number;
+  props?: Record<string, unknown>;
+};
+
+function newOpId() {
+  return `op-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function mergePatchIntoCreate(
+  create: Extract<TablePatchOp, { action: "create" }>,
+  patch: UpdatePatch
+) {
   if (patch.x !== undefined) create.object.x = patch.x;
   if (patch.y !== undefined) create.object.y = patch.y;
   if (patch.sortOrder !== undefined) create.object.sortOrder = patch.sortOrder;
   if (patch.props !== undefined) create.object.props = patch.props;
 }
 
+function mergeUpdateIntoCreate(create: TablePatchOp, update: TablePatchOp) {
+  if (create.action !== "create" || update.action !== "update") return;
+  mergePatchIntoCreate(create, update.patch);
+}
+
 function sortOpsForSend(ops: TablePatchOp[]): TablePatchOp[] {
   const rank = (op: TablePatchOp) => (op.action === "create" ? 0 : op.action === "update" ? 1 : 2);
   return [...ops].sort((a, b) => rank(a) - rank(b));
+}
+
+function mergeDeferredUpdate(prev: TablePatchOp | undefined, op: TablePatchOp): TablePatchOp {
+  if (prev && prev.action === "update" && op.action === "update") {
+    return {
+      ...prev,
+      patch: { ...prev.patch, ...op.patch },
+    };
+  }
+  return op;
 }
 
 export class TableSync {
@@ -43,13 +82,15 @@ export class TableSync {
   private inFlightCreates = new Set<string>();
   /** Updates for objects whose create is still in flight. */
   private deferredUpdates = new Map<string, TablePatchOp>();
+  /** Unacked creates cancelled locally while still in flight — delete on ack. */
+  private cancelledInFlightCreates = new Set<string>();
 
   private params: {
     tableId: string;
     clientId: string;
     socket: Socket;
     setStatus: (s: SyncStatus) => void;
-    onConflict: () => Promise<void>;
+    onConflict: (conflicts: PatchConflict[]) => Promise<void>;
     onBroadcast: (applied: AppliedOp[]) => void;
   };
 
@@ -58,7 +99,7 @@ export class TableSync {
     clientId: string;
     socket: Socket;
     setStatus: (s: SyncStatus) => void;
-    onConflict: () => Promise<void>;
+    onConflict: (conflicts: PatchConflict[]) => Promise<void>;
     onBroadcast: (applied: AppliedOp[]) => void;
   }) {
     this.params = params;
@@ -75,6 +116,109 @@ export class TableSync {
     return () => {
       this.params.socket.off("table:patchApplied", handler);
     };
+  }
+
+  isCreatePendingOrInFlight(key: string): boolean {
+    if (this.inFlightCreates.has(key)) return true;
+    return this.pending.some((p) => p.action === "create" && p.key === key);
+  }
+
+  /**
+   * Amend a pending or in-flight create with a patch. Never enqueues a standalone update.
+   */
+  amendUnackedUpdate(key: string, patch: UpdatePatch): AmendUnackedResult {
+    const pendingCreateIdx = this.pending.findIndex(
+      (p) => p.action === "create" && p.key === key
+    );
+    if (pendingCreateIdx >= 0) {
+      const create = this.pending[pendingCreateIdx];
+      if (create.action === "create") {
+        mergePatchIntoCreate(create, patch);
+      }
+      this.scheduleFlush();
+      return "merged";
+    }
+
+    if (this.inFlightCreates.has(key)) {
+      const op: TablePatchOp = {
+        opId: newOpId(),
+        action: "update",
+        key,
+        baseVersion: 1,
+        patch,
+      };
+      const prev = this.deferredUpdates.get(key);
+      this.deferredUpdates.set(key, mergeDeferredUpdate(prev, op));
+      return "deferred";
+    }
+
+    return "no_target";
+  }
+
+  /**
+   * Queue or amend a create for an unacked object. Skips if the key is already in flight
+   * (use amendUnackedUpdate instead).
+   */
+  upsertUnackedCreate(key: string, object: UnackedObjectDto): "pending" | "deferred" | "skipped_in_flight" {
+    const pendingCreateIdx = this.pending.findIndex(
+      (p) => p.action === "create" && p.key === key
+    );
+    if (pendingCreateIdx >= 0) {
+      const create = this.pending[pendingCreateIdx];
+      if (create.action === "create") {
+        create.object = {
+          type: object.type,
+          x: object.x,
+          y: object.y,
+          sortOrder: object.sortOrder,
+          props: object.props,
+        };
+      }
+      this.scheduleFlush();
+      return "pending";
+    }
+
+    if (this.inFlightCreates.has(key)) {
+      const op: TablePatchOp = {
+        opId: newOpId(),
+        action: "update",
+        key,
+        baseVersion: 1,
+        patch: {
+          x: object.x,
+          y: object.y,
+          sortOrder: object.sortOrder,
+          props: object.props,
+        },
+      };
+      const prev = this.deferredUpdates.get(key);
+      this.deferredUpdates.set(key, mergeDeferredUpdate(prev, op));
+      return "deferred";
+    }
+
+    this.pending.push({
+      opId: newOpId(),
+      action: "create",
+      key,
+      object: {
+        type: object.type,
+        x: object.x,
+        y: object.y,
+        sortOrder: object.sortOrder ?? 0,
+        props: object.props ?? {},
+      },
+    });
+    this.scheduleFlush();
+    return "pending";
+  }
+
+  /** Drop a pending/in-flight unacked create without sending delete to the server. */
+  cancelUnackedCreate(key: string) {
+    this.pending = this.pending.filter((p) => !(p.action === "create" && p.key === key));
+    this.deferredUpdates.delete(key);
+    if (this.inFlightCreates.has(key)) {
+      this.cancelledInFlightCreates.add(key);
+    }
   }
 
   enqueue(ops: TablePatchOp[]) {
@@ -95,15 +239,7 @@ export class TableSync {
       }
       if (this.inFlightCreates.has(op.key)) {
         const prev = this.deferredUpdates.get(op.key);
-        if (prev && prev.action === "update") {
-          const merged: TablePatchOp = {
-            ...prev,
-            patch: { ...prev.patch, ...op.patch },
-          };
-          this.deferredUpdates.set(op.key, merged);
-        } else {
-          this.deferredUpdates.set(op.key, op);
-        }
+        this.deferredUpdates.set(op.key, mergeDeferredUpdate(prev, op));
         return;
       }
     }
@@ -130,6 +266,19 @@ export class TableSync {
     for (const op of applied) {
       if (op.action !== "create") continue;
       this.inFlightCreates.delete(op.key);
+
+      if (this.cancelledInFlightCreates.has(op.key)) {
+        this.cancelledInFlightCreates.delete(op.key);
+        this.deferredUpdates.delete(op.key);
+        this.pending.push({
+          opId: newOpId(),
+          action: "delete",
+          key: op.key,
+          baseVersion: op.version,
+        });
+        continue;
+      }
+
       const deferred = this.deferredUpdates.get(op.key);
       if (!deferred) continue;
       this.deferredUpdates.delete(op.key);
@@ -143,6 +292,25 @@ export class TableSync {
     this.inFlight = false;
     if (applied?.length) this.releaseDeferredCreates(applied);
     if (this.pending.length > 0) void this.flush();
+  }
+
+  private requeueBatchAfterConflict(batch: TablePatchOp[], conflicts: PatchConflict[]) {
+    const conflictOpIds = new Set(conflicts.map((c) => c.opId));
+    const serverHasObject = new Set(
+      conflicts.filter((c) => c.actualVersion !== null).map((c) => c.key)
+    );
+
+    for (const op of batch) {
+      if (op.action === "create") {
+        this.inFlightCreates.delete(op.key);
+        if (serverHasObject.has(op.key)) {
+          this.deferredUpdates.delete(op.key);
+        }
+      }
+    }
+
+    const toRequeue = batch.filter((op) => !conflictOpIds.has(op.opId));
+    this.pending = toRequeue.concat(this.pending);
   }
 
   private async flush() {
@@ -193,18 +361,18 @@ export class TableSync {
           return;
         }
         if (ack?.status === 409 || ack?.error === "VERSION_CONFLICT") {
-          if (ack.conflicts?.length) {
-            console.warn("[TableSync] VERSION_CONFLICT", ack.conflicts);
+          const conflicts = ack.conflicts ?? [];
+          for (const c of conflicts) {
+            console.warn("[TableSync] VERSION_CONFLICT", {
+              key: c.key,
+              expectedVersion: c.expectedVersion,
+              actualVersion: c.actualVersion,
+            });
           }
           this.params.setStatus("conflict");
-          for (const op of batch) {
-            if (op.action === "create") this.inFlightCreates.delete(op.key);
-          }
-          for (const op of batch) {
-            if (op.action === "create") this.deferredUpdates.delete(op.key);
-          }
+          this.requeueBatchAfterConflict(batch, conflicts);
           try {
-            await this.params.onConflict();
+            await this.params.onConflict(conflicts);
             window.setTimeout(() => this.params.setStatus("idle"), 1200);
           } catch {
             this.params.setStatus("error");

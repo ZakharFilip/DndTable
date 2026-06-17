@@ -2,15 +2,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getSocket } from "../../../realtime/socket";
 import {
   TableSync,
+  type AmendUnackedResult,
   type AppliedOp,
+  type PatchConflict,
   type SyncStatus,
   type TablePatchOp,
+  type UnackedObjectDto,
 } from "../../../tabletop/realtime/TableSync";
+
+export type { PatchConflict, UnackedObjectDto, AmendUnackedResult };
 
 interface UseTableSyncParams {
   id: string | undefined;
   clientId: string;
-  onConflict: () => Promise<void>;
+  onConflict: (conflicts: PatchConflict[]) => Promise<void>;
   onBroadcast: (applied: AppliedOp[]) => void;
 }
 
@@ -40,7 +45,7 @@ export function useTableSync({ id, clientId, onConflict, onBroadcast }: UseTable
       clientId,
       socket,
       setStatus: setSyncStatus,
-      onConflict: () => onConflictRef.current(),
+      onConflict: (conflicts) => onConflictRef.current(conflicts),
       onBroadcast: (applied) => onBroadcastRef.current(applied),
     });
     const stop = syncRef.current.start();
@@ -56,6 +61,33 @@ export function useTableSync({ id, clientId, onConflict, onBroadcast }: UseTable
 
   const flushNow = useCallback(() => {
     syncRef.current?.flushNow();
+  }, []);
+
+  const amendUnackedUpdate = useCallback(
+    (
+      key: string,
+      patch: {
+        x?: number;
+        y?: number;
+        sortOrder?: number;
+        props?: Record<string, unknown>;
+      }
+    ) => {
+      return syncRef.current?.amendUnackedUpdate(key, patch) ?? ("no_target" as AmendUnackedResult);
+    },
+    []
+  );
+
+  const upsertUnackedCreate = useCallback((key: string, object: UnackedObjectDto) => {
+    return syncRef.current?.upsertUnackedCreate(key, object) ?? ("pending" as const);
+  }, []);
+
+  const cancelUnackedCreate = useCallback((key: string) => {
+    syncRef.current?.cancelUnackedCreate(key);
+  }, []);
+
+  const isCreatePendingOrInFlight = useCallback((key: string) => {
+    return syncRef.current?.isCreatePendingOrInFlight(key) ?? false;
   }, []);
 
   // Best-effort flushes when the user switches focus or hides the page.
@@ -84,5 +116,13 @@ export function useTableSync({ id, clientId, onConflict, onBroadcast }: UseTable
     };
   }, [id]);
 
-  return { syncStatus, enqueueOps, flushNow };
+  return {
+    syncStatus,
+    enqueueOps,
+    flushNow,
+    amendUnackedUpdate,
+    upsertUnackedCreate,
+    cancelUnackedCreate,
+    isCreatePendingOrInFlight,
+  };
 }

@@ -3,16 +3,26 @@ import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { Permission, TabletopBaseObject } from "@dnd-table/shared";
 import type { HistoryEntry, HistoryOp } from "../../../tabletop/history/HistoryManager";
 import { historyEntry, layersOp, restoreOp } from "../../../tabletop/history/historyHelpers";
-import type { AppliedOp, TablePatchOp } from "../../../tabletop/realtime/TableSync";
+import type {
+  AmendUnackedResult,
+  AppliedOp,
+  TablePatchOp,
+  UnackedObjectDto,
+} from "../../../tabletop/realtime/TableSync";
 import type { Layer, TableObjectState } from "../../../tabletop/model";
 import {
   ObjectMutationPlanner,
   sanitizePropsForSync,
+  type CommitPlan,
+  type UpdatePatch,
 } from "../../../tabletop/sync/ObjectMutationPlanner";
 import { cloneObj, newOpId } from "../helpers";
 
 interface UseObjectMutationsParams {
   enqueueOps: (ops: TablePatchOp[]) => void;
+  amendUnackedUpdate: (key: string, patch: UpdatePatch) => AmendUnackedResult;
+  upsertUnackedCreate: (key: string, object: UnackedObjectDto) => "pending" | "deferred" | "skipped_in_flight";
+  cancelUnackedCreate: (key: string) => void;
   pushHistory: (entry: HistoryEntry) => void;
   activeLayerId: string | null;
   objectsRef: MutableRefObject<TableObjectState[]>;
@@ -49,7 +59,7 @@ function syncSetObjects(
   });
 }
 
-function buildUpdateOp(key: string, plan: import("../../../tabletop/sync/ObjectMutationPlanner").CommitPlan): TablePatchOp {
+function buildUpdateOp(key: string, plan: CommitPlan): TablePatchOp {
   return {
     opId: newOpId(),
     action: "update",
@@ -57,6 +67,43 @@ function buildUpdateOp(key: string, plan: import("../../../tabletop/sync/ObjectM
     baseVersion: plan.baseVersion,
     patch: plan.patch,
   };
+}
+
+function buildUnackedDto(
+  state: TableObjectState,
+  patch: UpdatePatch,
+  props: Record<string, unknown>
+): UnackedObjectDto {
+  return {
+    type: state.obj.type,
+    x: patch.x ?? state.obj.transform.position.x,
+    y: patch.y ?? state.obj.transform.position.y,
+    sortOrder: patch.sortOrder ?? state.sortOrder,
+    props,
+  };
+}
+
+function syncUnackedChange(
+  key: string,
+  plan: CommitPlan,
+  objectsRef: MutableRefObject<TableObjectState[]>,
+  amendUnackedUpdate: UseObjectMutationsParams["amendUnackedUpdate"],
+  upsertUnackedCreate: UseObjectMutationsParams["upsertUnackedCreate"]
+) {
+  const amendResult = amendUnackedUpdate(key, plan.patch);
+  if (amendResult !== "no_target") return;
+
+  const state = objectsRef.current.find((o) => o.key === key);
+  if (!state) return;
+
+  let props = plan.patch.props;
+  if (props === undefined) {
+    const sanitized = sanitizePropsForSync(state.obj);
+    if (!sanitized.ok) return;
+    props = sanitized.props;
+  }
+
+  upsertUnackedCreate(key, buildUnackedDto(state, plan.patch, props));
 }
 
 function layerPatchOp(layer: Layer, baseVersion: number): TablePatchOp {
@@ -129,6 +176,9 @@ function syncLayersToServer(
 export function useObjectMutations(params: UseObjectMutationsParams) {
   const {
     enqueueOps,
+    amendUnackedUpdate,
+    upsertUnackedCreate,
+    cancelUnackedCreate,
     pushHistory,
     activeLayerId,
     objectsRef,
@@ -307,7 +357,11 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         );
       }
 
-      enqueueOps([buildUpdateOp(key, plan)]);
+      if (plan.bumpVersion) {
+        enqueueOps([buildUpdateOp(key, plan)]);
+      } else {
+        syncUnackedChange(key, plan, objectsRef, amendUnackedUpdate, upsertUnackedCreate);
+      }
 
       if (!opts?.skipHistory && before) {
         const after = objectsRef.current.find((o) => o.key === key);
@@ -321,6 +375,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       }
     },
     [
+      amendUnackedUpdate,
       canPerform,
       enqueueOps,
       localEditBeforeRef,
@@ -329,6 +384,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       recordRestoreHistory,
       setObjects,
       onPropsSyncRejected,
+      upsertUnackedCreate,
     ]
   );
 
@@ -361,7 +417,11 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         )
       );
 
-      enqueueOps([buildUpdateOp(key, plan)]);
+      if (plan.bumpVersion) {
+        enqueueOps([buildUpdateOp(key, plan)]);
+      } else {
+        syncUnackedChange(key, plan, objectsRef, amendUnackedUpdate, upsertUnackedCreate);
+      }
 
       if (!opts?.skipHistory && before) {
         const after = objectsRef.current.find((o) => o.key === key);
@@ -375,6 +435,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       }
     },
     [
+      amendUnackedUpdate,
       canPerform,
       enqueueOps,
       localEditBeforeRef,
@@ -383,6 +444,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       recordRestoreHistory,
       setObjects,
       onPropsSyncRejected,
+      upsertUnackedCreate,
     ]
   );
 
@@ -399,8 +461,8 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       );
       const { unacked, acked } = planner.planTransformBatch(snapshots, latestByKey);
 
-      if (unacked.length > 0) {
-        enqueueOps(unacked.map(({ key, plan }) => buildUpdateOp(key, plan)));
+      for (const { key, plan } of unacked) {
+        syncUnackedChange(key, plan, objectsRef, amendUnackedUpdate, upsertUnackedCreate);
       }
 
       if (acked.length > 0) {
@@ -413,7 +475,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
 
       void opts;
     },
-    [canPerform, enqueueOps, objectsRef, planner, setObjects]
+    [amendUnackedUpdate, canPerform, enqueueOps, objectsRef, planner, setObjects, upsertUnackedCreate]
   );
 
   const deleteObject = useCallback(
@@ -422,13 +484,18 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       const current = objectsRef.current.find((o) => o.key === key);
       if (!current) return;
       const baseVersion = current.version;
+      const isUnacked = unackedCreatesRef.current.has(key);
 
       syncSetObjects(objectsRef, setObjects, (prev) => prev.filter((o) => o.key !== key));
       unackedCreatesRef.current.delete(key);
       setSelectedKey(null);
       setSelectedKeys([]);
 
-      enqueueOps([{ opId: newOpId(), action: "delete", key, baseVersion }]);
+      if (isUnacked) {
+        cancelUnackedCreate(key);
+      } else {
+        enqueueOps([{ opId: newOpId(), action: "delete", key, baseVersion }]);
+      }
 
       pushHistory(
         historyEntry(
@@ -437,7 +504,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         )
       );
     },
-    [canPerform, enqueueOps, pushHistory, objectsRef, setObjects, setSelectedKey, setSelectedKeys]
+    [canPerform, cancelUnackedCreate, enqueueOps, pushHistory, objectsRef, setObjects, setSelectedKey, setSelectedKeys]
   );
 
   const applyHistoryOps = useCallback(
@@ -446,15 +513,27 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         if (op.kind === "delete") {
           const current = objectsRef.current.find((o) => o.key === op.key);
           if (!current) continue;
-          const baseVersion = current.version;
+          const isUnacked = unackedCreatesRef.current.has(op.key);
           syncSetObjects(objectsRef, setObjects, (prev) => prev.filter((o) => o.key !== op.key));
-          enqueueOps([{ opId: newOpId(), action: "delete", key: op.key, baseVersion }]);
+          unackedCreatesRef.current.delete(op.key);
+          if (isUnacked) {
+            cancelUnackedCreate(op.key);
+          } else {
+            enqueueOps([
+              { opId: newOpId(), action: "delete", key: op.key, baseVersion: current.version },
+            ]);
+          }
           continue;
         }
 
         if (op.kind === "create") {
           const exists = objectsRef.current.some((o) => o.key === op.key);
           if (exists) continue;
+          const sanitized = sanitizePropsForSync(op.obj);
+          if (!sanitized.ok) {
+            onPropsSyncRejected?.(propsRejectedMessage);
+            continue;
+          }
           const state: TableObjectState = {
             key: op.key,
             version: 1,
@@ -463,48 +542,61 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
           };
           syncSetObjects(objectsRef, setObjects, (prev) => [...prev, state]);
           unackedCreatesRef.current.add(op.key);
-          enqueueOps([
-            {
-              opId: newOpId(),
-              action: "create",
-              key: op.key,
-              object: {
-                type: op.obj.type,
-                x: op.obj.transform.position.x,
-                y: op.obj.transform.position.y,
-                sortOrder: op.sortOrder,
-                props: op.obj as unknown as Record<string, unknown>,
-              },
-            },
-          ]);
+          upsertUnackedCreate(op.key, {
+            type: op.obj.type,
+            x: op.obj.transform.position.x,
+            y: op.obj.transform.position.y,
+            sortOrder: op.sortOrder,
+            props: sanitized.props,
+          });
           continue;
         }
 
         if (op.kind === "restore") {
           const current = objectsRef.current.find((o) => o.key === op.key);
           if (!current) continue;
-          const baseVersion = current.version;
+          const sanitized = sanitizePropsForSync(op.obj);
+          if (!sanitized.ok) {
+            onPropsSyncRejected?.(propsRejectedMessage);
+            continue;
+          }
+          const isUnacked = unackedCreatesRef.current.has(op.key);
+          const plan = isUnacked
+            ? planner.planFullCommit(current, op.obj)
+            : {
+                baseVersion: current.version,
+                bumpVersion: true,
+                patch: {
+                  x: op.obj.transform.position.x,
+                  y: op.obj.transform.position.y,
+                  sortOrder: op.sortOrder,
+                  props: sanitized.props,
+                },
+              };
+
+          if (isUnacked && !plan) {
+            onPropsSyncRejected?.(propsRejectedMessage);
+            continue;
+          }
+
           syncSetObjects(objectsRef, setObjects, (prev) =>
             prev.map((o) =>
               o.key === op.key
-                ? { ...o, version: o.version + 1, obj: op.obj, sortOrder: op.sortOrder }
+                ? {
+                    ...o,
+                    version: plan && plan.bumpVersion ? o.version + 1 : o.version,
+                    obj: op.obj,
+                    sortOrder: op.sortOrder,
+                  }
                 : o
             )
           );
-          enqueueOps([
-            {
-              opId: newOpId(),
-              action: "update",
-              key: op.key,
-              baseVersion,
-              patch: {
-                x: op.obj.transform.position.x,
-                y: op.obj.transform.position.y,
-                sortOrder: op.sortOrder,
-                props: op.obj as unknown as Record<string, unknown>,
-              },
-            },
-          ]);
+
+          if (plan?.bumpVersion) {
+            enqueueOps([buildUpdateOp(op.key, plan)]);
+          } else if (plan) {
+            syncUnackedChange(op.key, plan, objectsRef, amendUnackedUpdate, upsertUnackedCreate);
+          }
           continue;
         }
 
@@ -531,7 +623,18 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         }
       }
     },
-    [enqueueOps, layersRef, objectsRef, setLayers, setObjects]
+    [
+      amendUnackedUpdate,
+      cancelUnackedCreate,
+      enqueueOps,
+      layersRef,
+      objectsRef,
+      onPropsSyncRejected,
+      planner,
+      setLayers,
+      setObjects,
+      upsertUnackedCreate,
+    ]
   );
 
   const createLayer = useCallback(
@@ -685,14 +788,27 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       setSelectedKey(null);
       setSelectedKeys([]);
 
-      enqueueOps(
-        removed.map((r) => ({
-          opId: newOpId(),
-          action: "delete" as const,
-          key: r.key,
-          baseVersion: r.baseVersion,
-        }))
-      );
+      const toDeleteOnServer: typeof removed = [];
+      for (const r of removed) {
+        const isUnacked = unackedCreatesRef.current.has(r.key);
+        unackedCreatesRef.current.delete(r.key);
+        if (isUnacked) {
+          cancelUnackedCreate(r.key);
+        } else {
+          toDeleteOnServer.push(r);
+        }
+      }
+
+      if (toDeleteOnServer.length > 0) {
+        enqueueOps(
+          toDeleteOnServer.map((r) => ({
+            opId: newOpId(),
+            action: "delete" as const,
+            key: r.key,
+            baseVersion: r.baseVersion,
+          }))
+        );
+      }
 
       pushHistory(
         historyEntry(
@@ -706,7 +822,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         )
       );
     },
-    [enqueueOps, pushHistory, objectsRef, setObjects, setSelectedKey, setSelectedKeys]
+    [cancelUnackedCreate, enqueueOps, pushHistory, objectsRef, setObjects, setSelectedKey, setSelectedKeys]
   );
 
   const pushRestoreBatch = useCallback(
@@ -732,6 +848,12 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
     unackedCreatesRef.current.clear();
   }, []);
 
+  const registerUnackedCreates = useCallback((keys: string[]) => {
+    for (const key of keys) {
+      unackedCreatesRef.current.add(key);
+    }
+  }, []);
+
   const getPendingCreateKeys = useCallback(() => planner.getPendingCreateKeys(), [planner]);
 
   return {
@@ -750,6 +872,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
     pushRestoreBatch,
     noteCreatesAcked,
     resetUnackedCreates,
+    registerUnackedCreates,
     getPendingCreateKeys,
   };
 }

@@ -20,7 +20,8 @@ import {
   resolveLayersFromSession,
   type ParsedSession,
 } from "./sessionTable/helpers";
-import type { AppliedOp } from "../tabletop/realtime/TableSync";
+import type { AppliedOp, PatchConflict } from "../tabletop/realtime/TableSync";
+import { sanitizePropsForSync } from "../tabletop/sync/ObjectMutationPlanner";
 import { useTableData, useInitialLoad } from "./sessionTable/hooks/useTableData";
 import { useTableSync } from "./sessionTable/hooks/useTableSync";
 import { useTableHistory } from "./sessionTable/hooks/useTableHistory";
@@ -63,7 +64,12 @@ export default function SessionTablePage() {
     new Map<string, { obj: TabletopBaseObject; sortOrder: number }>()
   );
   const resetUnackedCreatesRef = useRef<() => void>(() => {});
+  const registerUnackedCreatesRef = useRef<(keys: string[]) => void>(() => {});
   const getPendingCreateKeysRef = useRef<() => string[]>(() => []);
+  const upsertUnackedCreateRef = useRef<
+    (key: string, object: import("../tabletop/realtime/TableSync").UnackedObjectDto) => void
+  >(() => {});
+  const flushNowRef = useRef<() => void>(() => {});
   const onBroadcastImplRef = useRef<(applied: AppliedOp[]) => void>(() => {});
   const stagePosRef = useRef(stagePos);
   const scaleRef = useRef(scale);
@@ -181,26 +187,88 @@ export default function SessionTablePage() {
   const { loadStatus, fetchFull } = useTableData(id);
   useInitialLoad(id, fetchFull, applyDataWithHistoryClear);
 
-  const onConflict = useCallback(async () => {
+  const onConflict = useCallback(async (conflicts: PatchConflict[]) => {
     const pendingBefore = getPendingCreateKeysRef.current();
+    const localUnacked = objectsRef.current.filter((o) => pendingBefore.includes(o.key));
+    const localSnap = new Map(localUnacked.map((o) => [o.key, o]));
+
     const parsed = await fetchFull();
-    if (parsed) {
-      applyDataWithHistoryClear(parsed);
-      const lost = pendingBefore.filter((k) => !parsed.objects.some((o) => o.key === k));
-      if (lost.length > 0) {
-        setSpriteError(
-          "Объект ещё сохранялся на сервере. Подождите синхронизацию и повторите действие."
-        );
-      }
+    if (!parsed) return;
+
+    if (parsed.viewport) {
+      setStagePos({ x: parsed.viewport.panX, y: parsed.viewport.panY });
+      setScale(parsed.viewport.scale);
     }
-  }, [fetchFull, applyDataWithHistoryClear]);
+    const { layers: resolvedLayers, shouldSyncDefaultLayer } = resolveLayersFromSession(
+      parsed.layers,
+      parsed.objects
+    );
+    shouldSyncDefaultLayerRef.current = shouldSyncDefaultLayer;
+    setLayers(resolvedLayers);
+    layersRef.current = resolvedLayers;
+    setActiveLayerId((prev) => prev ?? resolvedLayers[0]?.id ?? null);
+
+    const serverKeys = new Set(parsed.objects.map((o) => o.key));
+    const preserved = localUnacked.filter((o) => !serverKeys.has(o.key));
+    const mergedObjects = [...parsed.objects, ...preserved];
+    setObjects(mergedObjects);
+    objectsRef.current = mergedObjects;
+    localEditBeforeRef.current.clear();
+
+    resetUnackedCreatesRef.current();
+    if (preserved.length > 0) {
+      registerUnackedCreatesRef.current(preserved.map((o) => o.key));
+    }
+
+    sessionAccess.setFromFull(parsed.access, parsed.viewer);
+
+    for (const c of conflicts) {
+      if (c.actualVersion !== null) {
+        const actual = c.actualVersion;
+        setObjects((prev) => {
+          const next = prev.map((o) => (o.key === c.key ? { ...o, version: actual } : o));
+          objectsRef.current = next;
+          return next;
+        });
+        continue;
+      }
+      const local = localSnap.get(c.key);
+      if (!local) continue;
+      const sanitized = sanitizePropsForSync(local.obj);
+      if (!sanitized.ok) continue;
+      upsertUnackedCreateRef.current(c.key, {
+        type: local.obj.type,
+        x: local.obj.transform.position.x,
+        y: local.obj.transform.position.y,
+        sortOrder: local.sortOrder,
+        props: sanitized.props,
+      });
+      registerUnackedCreatesRef.current([c.key]);
+    }
+
+    const lost = pendingBefore.filter((k) => !mergedObjects.some((o) => o.key === k));
+    if (lost.length > 0) {
+      setSpriteError(
+        "Объект ещё сохранялся на сервере. Подождите синхронизацию и повторите действие."
+      );
+    }
+
+    flushNowRef.current();
+  }, [fetchFull, sessionAccess.setFromFull]);
 
   const onBroadcast = useCallback(
     (applied: AppliedOp[]) => onBroadcastImplRef.current(applied),
     []
   );
 
-  const { syncStatus, enqueueOps, flushNow } = useTableSync({
+  const {
+    syncStatus,
+    enqueueOps,
+    flushNow,
+    amendUnackedUpdate,
+    upsertUnackedCreate,
+    cancelUnackedCreate,
+  } = useTableSync({
     id,
     clientId,
     onConflict,
@@ -238,9 +306,13 @@ export default function SessionTablePage() {
     pushRestoreBatch,
     noteCreatesAcked,
     resetUnackedCreates,
+    registerUnackedCreates,
     getPendingCreateKeys,
   } = useObjectMutations({
     enqueueOps,
+    amendUnackedUpdate,
+    upsertUnackedCreate,
+    cancelUnackedCreate,
     pushHistory,
     activeLayerId,
     objectsRef,
@@ -267,7 +339,10 @@ export default function SessionTablePage() {
     }
   };
   resetUnackedCreatesRef.current = resetUnackedCreates;
+  registerUnackedCreatesRef.current = registerUnackedCreates;
   getPendingCreateKeysRef.current = getPendingCreateKeys;
+  upsertUnackedCreateRef.current = upsertUnackedCreate;
+  flushNowRef.current = flushNow;
 
   const undo = useCallback(() => undoHistory(applyHistoryOps), [undoHistory, applyHistoryOps]);
   const redo = useCallback(() => redoHistory(applyHistoryOps), [redoHistory, applyHistoryOps]);

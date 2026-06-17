@@ -10,6 +10,21 @@ vi.mock("../frontend/src/api/sessionSprites", () => ({
   spriteUploadErrorMessage: (err: unknown) => String(err),
 }));
 
+function stubWindowTimers() {
+  const timeouts: Array<() => void> = [];
+  vi.stubGlobal("window", {
+    setTimeout: (fn: () => void) => {
+      timeouts.push(fn);
+      return timeouts.length;
+    },
+    clearTimeout: () => {},
+  });
+  return {
+    flush: () => timeouts.splice(0).forEach((fn) => fn()),
+    restore: () => vi.unstubAllGlobals(),
+  };
+}
+
 describe("paste → move sync", () => {
   it("transformPositionPatch sends only x and y", () => {
     const obj = {
@@ -95,6 +110,56 @@ describe("paste → move sync", () => {
     expect(ops[0]?.object?.props).toEqual({});
 
     vi.unstubAllGlobals();
+  });
+
+  it("amendUnackedUpdate merges props into pending create without standalone update", () => {
+    const timers = stubWindowTimers();
+
+    let capturedOps: unknown;
+    const socket = {
+      emit: vi.fn((_event: string, payload: { ops: unknown[] }, ack?: (resp: unknown) => void) => {
+        capturedOps = payload.ops;
+        ack?.({ success: true, applied: [] });
+      }),
+      on: vi.fn(),
+      off: vi.fn(),
+    } as unknown as import("socket.io-client").Socket;
+
+    const sync = new TableSync({
+      tableId: "t1",
+      clientId: "c1",
+      socket,
+      setStatus: () => {},
+      onConflict: async () => {},
+      onBroadcast: () => {},
+    });
+
+    sync.enqueue([
+      {
+        opId: "create-1",
+        action: "create",
+        key: "shape-pasted",
+        object: { type: "shape", x: 5, y: 6, sortOrder: 0, props: { fillColor: "#ff0000" } },
+      },
+    ]);
+
+    const amend = sync.amendUnackedUpdate("shape-pasted", {
+      props: { fillColor: "#00ff00" },
+    });
+    expect(amend).toBe("merged");
+
+    timers.flush();
+
+    const ops = capturedOps as Array<{
+      action: string;
+      object?: { props?: Record<string, unknown> };
+    }>;
+    expect(ops).toHaveLength(1);
+    expect(ops[0]?.action).toBe("create");
+    expect(ops[0]?.object?.props).toEqual({ fillColor: "#00ff00" });
+    expect(ops.every((op) => op.action !== "update")).toBe(true);
+
+    timers.restore();
   });
 
   it("planPropsCommit after paste keeps version 1 until create ack", () => {
