@@ -1,11 +1,15 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { Permission, TabletopBaseObject } from "@dnd-table/shared";
 import type { HistoryEntry, HistoryOp } from "../../../tabletop/history/HistoryManager";
 import { historyEntry, layersOp, restoreOp } from "../../../tabletop/history/historyHelpers";
 import type { AppliedOp, TablePatchOp } from "../../../tabletop/realtime/TableSync";
 import type { Layer, TableObjectState } from "../../../tabletop/model";
-import { cloneObj, newOpId, transformPositionPatch } from "../helpers";
+import {
+  ObjectMutationPlanner,
+  sanitizePropsForSync,
+} from "../../../tabletop/sync/ObjectMutationPlanner";
+import { cloneObj, newOpId } from "../helpers";
 
 interface UseObjectMutationsParams {
   enqueueOps: (ops: TablePatchOp[]) => void;
@@ -21,6 +25,7 @@ interface UseObjectMutationsParams {
     Map<string, { obj: TabletopBaseObject; sortOrder: number }>
   >;
   canPerform?: (permission: Permission, objectKey?: string) => boolean;
+  onPropsSyncRejected?: (message: string) => void;
 }
 
 function assertCan(
@@ -42,6 +47,16 @@ function syncSetObjects(
     objectsRef.current = next;
     return next;
   });
+}
+
+function buildUpdateOp(key: string, plan: import("../../../tabletop/sync/ObjectMutationPlanner").CommitPlan): TablePatchOp {
+  return {
+    opId: newOpId(),
+    action: "update",
+    key,
+    baseVersion: plan.baseVersion,
+    patch: plan.patch,
+  };
 }
 
 function layerPatchOp(layer: Layer, baseVersion: number): TablePatchOp {
@@ -124,10 +139,14 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
     setSelectedKeys,
     localEditBeforeRef,
     canPerform,
+    onPropsSyncRejected,
   } = params;
 
   /** Object keys with a create op not yet acked by the server. */
   const unackedCreatesRef = useRef(new Set<string>());
+  const planner = useMemo(() => new ObjectMutationPlanner(unackedCreatesRef), []);
+
+  const propsRejectedMessage = "Не удалось синхронизировать объект: изображение не готово к отправке.";
 
   const noteCreatesAcked = useCallback((applied: AppliedOp[]) => {
     for (const op of applied) {
@@ -166,6 +185,14 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       setSelectedKeys([key]);
       unackedCreatesRef.current.add(key);
 
+      const sanitized = sanitizePropsForSync(withLayer);
+      if (!sanitized.ok) {
+        onPropsSyncRejected?.(propsRejectedMessage);
+        syncSetObjects(objectsRef, setObjects, (prev) => prev.filter((o) => o.key !== key));
+        unackedCreatesRef.current.delete(key);
+        return;
+      }
+
       enqueueOps([
         {
           opId: newOpId(),
@@ -176,7 +203,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
             x: withLayer.transform.position.x,
             y: withLayer.transform.position.y,
             sortOrder,
-            props: withLayer as unknown as Record<string, unknown>,
+            props: sanitized.props,
           },
         },
       ]);
@@ -190,7 +217,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         );
       }
     },
-    [activeLayerId, canPerform, enqueueOps, pushHistory, objectsRef, setObjects, setSelectedKey, setSelectedKeys]
+    [activeLayerId, canPerform, enqueueOps, pushHistory, objectsRef, setObjects, setSelectedKey, setSelectedKeys, onPropsSyncRejected]
   );
 
   const createObjectsBatch = useCallback(
@@ -216,25 +243,40 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         unackedCreatesRef.current.add(key);
       }
 
-      enqueueOps(
-        created.map(({ key, obj, sortOrder }) => ({
+      const ops: TablePatchOp[] = [];
+      for (const { key, obj, sortOrder } of created) {
+        const sanitized = sanitizePropsForSync(obj);
+        if (!sanitized.ok) {
+          onPropsSyncRejected?.(propsRejectedMessage);
+          syncSetObjects(objectsRef, setObjects, (prev) => prev.filter((o) => o.key !== key));
+          unackedCreatesRef.current.delete(key);
+          continue;
+        }
+        ops.push({
           opId: newOpId(),
-          action: "create" as const,
+          action: "create",
           key,
           object: {
             type: obj.type,
             x: obj.transform.position.x,
             y: obj.transform.position.y,
             sortOrder,
-            props: obj as unknown as Record<string, unknown>,
+            props: sanitized.props,
           },
-        }))
-      );
+        });
+      }
+
+      if (ops.length === 0) return;
+
+      enqueueOps(ops);
+
+      const syncedKeys = new Set(ops.map((op) => op.key));
+      const syncedCreated = created.filter((c) => syncedKeys.has(c.key));
 
       pushHistory(
         historyEntry(
-          created.map(({ key }) => ({ kind: "delete" as const, key })),
-          created.map(({ key, obj, sortOrder }) => ({
+          syncedCreated.map(({ key }) => ({ kind: "delete" as const, key })),
+          syncedCreated.map(({ key, obj, sortOrder }) => ({
             kind: "create" as const,
             key,
             obj,
@@ -243,7 +285,7 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         )
       );
     },
-    [activeLayerId, canPerform, enqueueOps, pushHistory, objectsRef, setObjects]
+    [activeLayerId, canPerform, enqueueOps, pushHistory, objectsRef, setObjects, onPropsSyncRejected]
   );
 
   const commitObject = useCallback(
@@ -251,25 +293,21 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       if (!assertCan(canPerform, "ChangeObjectProperties", key)) return;
       const current = objectsRef.current.find((o) => o.key === key);
       if (!current) return;
-      const baseVersion = current.version;
       const before = localEditBeforeRef.current.get(key);
+      const latest = objectsRef.current.find((o) => o.key === key) ?? current;
+      const plan = planner.planPropsCommit(current, latest.obj);
+      if (!plan) {
+        onPropsSyncRejected?.(propsRejectedMessage);
+        return;
+      }
 
-      syncSetObjects(objectsRef, setObjects, (prev) =>
-        prev.map((o) => (o.key === key ? { ...o, version: o.version + 1 } : o))
-      );
+      if (plan.bumpVersion) {
+        syncSetObjects(objectsRef, setObjects, (prev) =>
+          prev.map((o) => (o.key === key ? { ...o, version: o.version + 1 } : o))
+        );
+      }
 
-      const latest = objectsRef.current.find((o) => o.key === key);
-      enqueueOps([
-        {
-          opId: newOpId(),
-          action: "update",
-          key,
-          baseVersion,
-          patch: {
-            props: (latest?.obj ?? current.obj) as unknown as Record<string, unknown>,
-          },
-        },
-      ]);
+      enqueueOps([buildUpdateOp(key, plan)]);
 
       if (!opts?.skipHistory && before) {
         const after = objectsRef.current.find((o) => o.key === key);
@@ -282,7 +320,16 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         localEditBeforeRef.current.delete(key);
       }
     },
-    [canPerform, enqueueOps, localEditBeforeRef, objectsRef, recordRestoreHistory, setObjects]
+    [
+      canPerform,
+      enqueueOps,
+      localEditBeforeRef,
+      objectsRef,
+      planner,
+      recordRestoreHistory,
+      setObjects,
+      onPropsSyncRejected,
+    ]
   );
 
   const commitObjectWith = useCallback(
@@ -290,7 +337,11 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
       if (!assertCan(canPerform, "ChangeObjectProperties", key)) return;
       const current = objectsRef.current.find((o) => o.key === key);
       if (!current) return;
-      const baseVersion = current.version;
+      const plan = planner.planFullCommit(current, nextObj);
+      if (!plan) {
+        onPropsSyncRejected?.(propsRejectedMessage);
+        return;
+      }
       const before = opts?.skipHistory
         ? null
         : localEditBeforeRef.current.get(key) ?? {
@@ -299,23 +350,18 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
           };
 
       syncSetObjects(objectsRef, setObjects, (prev) =>
-        prev.map((o) => (o.key === key ? { ...o, version: o.version + 1, obj: nextObj } : o))
+        prev.map((o) =>
+          o.key === key
+            ? {
+                ...o,
+                obj: nextObj,
+                version: plan.bumpVersion ? o.version + 1 : o.version,
+              }
+            : o
+        )
       );
 
-      enqueueOps([
-        {
-          opId: newOpId(),
-          action: "update",
-          key,
-          baseVersion,
-          patch: {
-            x: nextObj.transform.position.x,
-            y: nextObj.transform.position.y,
-            sortOrder: current.sortOrder,
-            props: nextObj as unknown as Record<string, unknown>,
-          },
-        },
-      ]);
+      enqueueOps([buildUpdateOp(key, plan)]);
 
       if (!opts?.skipHistory && before) {
         const after = objectsRef.current.find((o) => o.key === key);
@@ -328,7 +374,16 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         localEditBeforeRef.current.delete(key);
       }
     },
-    [canPerform, enqueueOps, localEditBeforeRef, objectsRef, recordRestoreHistory, setObjects]
+    [
+      canPerform,
+      enqueueOps,
+      localEditBeforeRef,
+      objectsRef,
+      planner,
+      recordRestoreHistory,
+      setObjects,
+      onPropsSyncRejected,
+    ]
   );
 
   const commitObjectsBatch = useCallback(
@@ -339,47 +394,26 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
         .filter(Boolean) as TableObjectState[];
       if (snapshots.length === 0) return;
 
-      const unacked = snapshots.filter((o) => unackedCreatesRef.current.has(o.key));
-      const acked = snapshots.filter((o) => !unackedCreatesRef.current.has(o.key));
+      const latestByKey = new Map(
+        snapshots.map((o) => [o.key, objectsRef.current.find((x) => x.key === o.key) ?? o])
+      );
+      const { unacked, acked } = planner.planTransformBatch(snapshots, latestByKey);
 
       if (unacked.length > 0) {
-        enqueueOps(
-          unacked.map((o) => {
-            const latest = objectsRef.current.find((x) => x.key === o.key) ?? o;
-            return {
-              opId: newOpId(),
-              action: "update" as const,
-              key: o.key,
-              baseVersion: o.version,
-              patch: transformPositionPatch(latest.obj),
-            };
-          })
-        );
+        enqueueOps(unacked.map(({ key, plan }) => buildUpdateOp(key, plan)));
       }
 
       if (acked.length > 0) {
-        const keySet = new Set(acked.map((o) => o.key));
+        const keySet = new Set(acked.map(({ key }) => key));
         syncSetObjects(objectsRef, setObjects, (prev) =>
           prev.map((o) => (keySet.has(o.key) ? { ...o, version: o.version + 1 } : o))
         );
-
-        enqueueOps(
-          acked.map((o) => {
-            const latest = objectsRef.current.find((x) => x.key === o.key) ?? o;
-            return {
-              opId: newOpId(),
-              action: "update" as const,
-              key: o.key,
-              baseVersion: o.version,
-              patch: transformPositionPatch(latest.obj),
-            };
-          })
-        );
+        enqueueOps(acked.map(({ key, plan }) => buildUpdateOp(key, plan)));
       }
 
       void opts;
     },
-    [canPerform, enqueueOps, objectsRef, setObjects]
+    [canPerform, enqueueOps, objectsRef, planner, setObjects]
   );
 
   const deleteObject = useCallback(
@@ -698,6 +732,8 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
     unackedCreatesRef.current.clear();
   }, []);
 
+  const getPendingCreateKeys = useCallback(() => planner.getPendingCreateKeys(), [planner]);
+
   return {
     createObject,
     createObjectsBatch,
@@ -714,5 +750,6 @@ export function useObjectMutations(params: UseObjectMutationsParams) {
     pushRestoreBatch,
     noteCreatesAcked,
     resetUnackedCreates,
+    getPendingCreateKeys,
   };
 }

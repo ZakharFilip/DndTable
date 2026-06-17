@@ -6,6 +6,7 @@ import {
   isShortTap,
   movementExceeded,
   shouldAllowPinch,
+  resolveTouchPanVsDrag,
   shouldInitPinchBaseline,
 } from "../frontend/src/pages/sessionTable/input/touchGesture";
 
@@ -72,5 +73,53 @@ describe("touchGesture", () => {
     expect(shouldAllowPinch("pending", true)).toBe(false);
     expect(shouldAllowPinch("idle", false)).toBe(true);
     expect(shouldAllowPinch("twoFinger", false)).toBe(true);
+  });
+
+  it("resolveTouchPanVsDrag pans over unselected object", () => {
+    const hit = {
+      key: "shape-1",
+      version: 1,
+      sortOrder: 0,
+      obj: { type: "shape", id: "shape-1", layerId: "base", transform: { position: { x: 0, y: 0 } } },
+    };
+    expect(
+      resolveTouchPanVsDrag({
+        hit,
+        selectionKeys: [],
+        layerLocked: false,
+      })
+    ).toBe("pan");
+  });
+
+  it("resolveTouchPanVsDrag drags selected object", () => {
+    const hit = {
+      key: "shape-1",
+      version: 1,
+      sortOrder: 0,
+      obj: { type: "shape", id: "shape-1", transform: { position: { x: 0, y: 0 } } },
+    };
+    expect(
+      resolveTouchPanVsDrag({
+        hit,
+        selectionKeys: ["shape-1"],
+        layerLocked: false,
+      })
+    ).toBe("dragObject");
+  });
+
+  it("resolveTouchPanVsDrag pans when layer is locked", () => {
+    const hit = {
+      key: "shape-1",
+      version: 1,
+      sortOrder: 0,
+      obj: { type: "shape", id: "shape-1", transform: { position: { x: 0, y: 0 } } },
+    };
+    expect(
+      resolveTouchPanVsDrag({
+        hit,
+        selectionKeys: ["shape-1"],
+        layerLocked: true,
+      })
+    ).toBe("pan");
   });
 });

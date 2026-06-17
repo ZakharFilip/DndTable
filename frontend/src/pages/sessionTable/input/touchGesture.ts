@@ -1,3 +1,5 @@
+import type { TableObjectState } from "../../../tabletop/model";
+
 export const LONG_PRESS_MS = 400;
 export const MOVEMENT_SLOP_PX = 10;
 export const DOUBLE_TAP_MS = 300;
@@ -47,6 +49,21 @@ export function classifyLongPressEnd(params: {
   if (!movedPastSlop && hadSelectionAtStart) return "contextMenu";
   if (!movedPastSlop && !hadSelectionAtStart) return "selectOnly";
   return "none";
+}
+
+/**
+ * One-finger move after slop: pan the camera unless the touched object is already selected.
+ */
+export function resolveTouchPanVsDrag(params: {
+  hit: TableObjectState | null;
+  selectionKeys: string[];
+  layerLocked: boolean;
+}): "pan" | "dragObject" {
+  const { hit, selectionKeys, layerLocked } = params;
+  if (!hit) return "pan";
+  if (layerLocked) return "pan";
+  if (!selectionKeys.includes(hit.key)) return "pan";
+  return "dragObject";
 }
 
 export type PinchBaseline = {

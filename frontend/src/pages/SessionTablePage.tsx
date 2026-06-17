@@ -63,6 +63,7 @@ export default function SessionTablePage() {
     new Map<string, { obj: TabletopBaseObject; sortOrder: number }>()
   );
   const resetUnackedCreatesRef = useRef<() => void>(() => {});
+  const getPendingCreateKeysRef = useRef<() => string[]>(() => []);
   const onBroadcastImplRef = useRef<(applied: AppliedOp[]) => void>(() => {});
   const stagePosRef = useRef(stagePos);
   const scaleRef = useRef(scale);
@@ -181,8 +182,17 @@ export default function SessionTablePage() {
   useInitialLoad(id, fetchFull, applyDataWithHistoryClear);
 
   const onConflict = useCallback(async () => {
+    const pendingBefore = getPendingCreateKeysRef.current();
     const parsed = await fetchFull();
-    if (parsed) applyDataWithHistoryClear(parsed);
+    if (parsed) {
+      applyDataWithHistoryClear(parsed);
+      const lost = pendingBefore.filter((k) => !parsed.objects.some((o) => o.key === k));
+      if (lost.length > 0) {
+        setSpriteError(
+          "Объект ещё сохранялся на сервере. Подождите синхронизацию и повторите действие."
+        );
+      }
+    }
   }, [fetchFull, applyDataWithHistoryClear]);
 
   const onBroadcast = useCallback(
@@ -209,6 +219,10 @@ export default function SessionTablePage() {
     };
   }, [id, sessionAccess.refetch]);
 
+  const onSpriteError = useCallback((message: string) => {
+    setSpriteError(message);
+  }, []);
+
   const {
     createObject,
     createObjectsBatch,
@@ -224,6 +238,7 @@ export default function SessionTablePage() {
     pushRestoreBatch,
     noteCreatesAcked,
     resetUnackedCreates,
+    getPendingCreateKeys,
   } = useObjectMutations({
     enqueueOps,
     pushHistory,
@@ -236,6 +251,7 @@ export default function SessionTablePage() {
     setSelectedKeys,
     localEditBeforeRef,
     canPerform: sessionAccess.can,
+    onPropsSyncRejected: onSpriteError,
   });
 
   onBroadcastImplRef.current = (applied) => {
@@ -251,6 +267,7 @@ export default function SessionTablePage() {
     }
   };
   resetUnackedCreatesRef.current = resetUnackedCreates;
+  getPendingCreateKeysRef.current = getPendingCreateKeys;
 
   const undo = useCallback(() => undoHistory(applyHistoryOps), [undoHistory, applyHistoryOps]);
   const redo = useCallback(() => redoHistory(applyHistoryOps), [redoHistory, applyHistoryOps]);
@@ -268,10 +285,6 @@ export default function SessionTablePage() {
   }, [selectedKey, selectedKeys, deleteObjects]);
 
   // ---- Copy/paste --------------------------------------------------------
-
-  const onSpriteError = useCallback((message: string) => {
-    setSpriteError(message);
-  }, []);
 
   const { copyKeys, pasteSelection, importImageSprite } = useCopyPaste({
     id,

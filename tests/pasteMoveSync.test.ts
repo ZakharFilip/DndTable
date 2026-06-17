@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { TabletopBaseObject } from "@dnd-table/shared";
 import { TableSync } from "../frontend/src/tabletop/realtime/TableSync";
 import { transformPositionPatch } from "../frontend/src/pages/sessionTable/helpers";
+import { ObjectMutationPlanner } from "../frontend/src/tabletop/sync/ObjectMutationPlanner";
 import { sanitizePastedObjectSprite } from "../frontend/src/pages/sessionTable/hooks/useCopyPaste";
 
 vi.mock("../frontend/src/api/sessionSprites", () => ({
@@ -94,5 +95,26 @@ describe("paste → move sync", () => {
     expect(ops[0]?.object?.props).toEqual({});
 
     vi.unstubAllGlobals();
+  });
+
+  it("planPropsCommit after paste keeps version 1 until create ack", () => {
+    const planner = new ObjectMutationPlanner({ current: new Set(["shape-pasted"]) });
+    const pasted = {
+      key: "shape-pasted",
+      version: 1,
+      sortOrder: 0,
+      obj: {
+        type: "shape",
+        id: "shape-pasted",
+        ownerUserId: null,
+        transform: { position: { x: 5, y: 6 }, rotation: 0, scale: { x: 1, y: 1 } },
+        appearance: { fillColor: "#ff0000" },
+      } as unknown as TabletopBaseObject,
+    };
+    const plan = planner.planPropsCommit(pasted, pasted.obj);
+    expect(plan?.bumpVersion).toBe(false);
+    expect(plan?.baseVersion).toBe(1);
+    expect(plan?.patch.props).toBeDefined();
+    expect(plan?.patch).not.toHaveProperty("x");
   });
 });

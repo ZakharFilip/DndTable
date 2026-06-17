@@ -35,6 +35,7 @@ import {
   isShortTap,
   LONG_PRESS_MS,
   movementExceeded,
+  resolveTouchPanVsDrag,
   shouldInitPinchBaseline,
   shouldAllowPinch,
   TOUCH_HANDLE_PX,
@@ -632,36 +633,28 @@ export function useTableCanvasInput(params: UseTableCanvasInputParams) {
 
         if (phase === "pending" && touchMovedRef.current && !touchLongPressFiredRef.current) {
           const hit = touchHitRef.current;
-          if (hit) {
-            const lid = hit.obj.layerId ?? null;
-            const layer = lid ? layersRef.current?.find((l) => l.id === lid) : null;
-            if (!layer?.locked) {
-              let keys = currentSelectionKeys(selectedKeys, selectedKey);
-              if (!keys.includes(hit.key)) {
-                selectHit(hit, false, false);
-                keys = hit.obj.groupId
-                  ? (objectsRef.current ?? [])
-                      .filter((o) => o.obj.groupId === hit.obj.groupId)
-                      .map((o) => o.key)
-                  : [hit.key];
-              } else if (keys.length > 1) {
-                keys = keys;
-              } else {
-                keys = hit.obj.groupId
-                  ? (objectsRef.current ?? [])
-                      .filter((o) => o.obj.groupId === hit.obj.groupId)
-                      .map((o) => o.key)
-                  : [hit.key];
-              }
-              touchPhaseRef.current = "dragObject";
-              beginObjectDrag(hit, world, keys);
-            }
-          } else {
+          const lid = hit?.obj.layerId ?? null;
+          const layer = lid ? layersRef.current?.find((l) => l.id === lid) : null;
+          const gesture = resolveTouchPanVsDrag({
+            hit,
+            selectionKeys: currentSelectionKeys(selectedKeys, selectedKey),
+            layerLocked: Boolean(layer?.locked),
+          });
+
+          if (gesture === "pan") {
             touchPhaseRef.current = "pan";
             controllerRef.current?.startPan({
               pointer: pt,
               stagePos: stagePosRef.current!,
             });
+          } else if (hit) {
+            const keys = hit.obj.groupId
+              ? (objectsRef.current ?? [])
+                  .filter((o) => o.obj.groupId === hit.obj.groupId)
+                  .map((o) => o.key)
+              : currentSelectionKeys(selectedKeys, selectedKey);
+            touchPhaseRef.current = "dragObject";
+            beginObjectDrag(hit, world, keys);
           }
         }
 
