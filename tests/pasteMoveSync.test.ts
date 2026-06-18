@@ -162,6 +162,25 @@ describe("paste → move sync", () => {
     timers.restore();
   });
 
+  it("planTransformCommitUnacked sends only x and y for unacked objects", () => {
+    const planner = new ObjectMutationPlanner({ current: new Set(["shape-pasted"]) });
+    const pasted = {
+      key: "shape-pasted",
+      version: 1,
+      sortOrder: 0,
+      obj: {
+        type: "shape",
+        id: "shape-pasted",
+        transform: { position: { x: 5, y: 6 }, rotation: 0, scale: { x: 1, y: 1 } },
+        appearance: { fillColor: "#ff0000" },
+      } as unknown as TabletopBaseObject,
+    };
+    const plan = planner.planTransformCommitUnacked(pasted, pasted.obj);
+    expect(plan.bumpVersion).toBe(false);
+    expect(plan.patch).toEqual({ x: 5, y: 6 });
+    expect(plan.patch.props).toBeUndefined();
+  });
+
   it("planPropsCommit after paste keeps version 1 until create ack", () => {
     const planner = new ObjectMutationPlanner({ current: new Set(["shape-pasted"]) });
     const pasted = {

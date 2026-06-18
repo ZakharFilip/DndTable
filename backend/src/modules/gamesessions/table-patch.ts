@@ -6,7 +6,6 @@ export type { AppliedOp, TablePatchAction, TablePatchOp } from "@dnd-table/share
 
 const MAX_SPRITE_PATH_LEN = 512;
 
-/** Reject inline data URLs and oversized sprite paths in object props. */
 export function validateSpriteInProps(props: Record<string, unknown> | undefined): string | null {
   if (!props || typeof props !== "object") return null;
   const appearance = props.appearance;
@@ -16,6 +15,24 @@ export function validateSpriteInProps(props: Record<string, unknown> | undefined
   if (sprite.startsWith("data:")) return "INLINE_SPRITE_NOT_ALLOWED";
   if (sprite.length > MAX_SPRITE_PATH_LEN) return "SPRITE_PATH_TOO_LONG";
   return null;
+}
+
+/** Keep props.transform.position in sync when patch updates only x/y columns. */
+export function syncTransformPositionInProps(
+  existingProps: Record<string, unknown> | undefined,
+  x: number | undefined,
+  y: number | undefined
+): Record<string, unknown> | undefined {
+  if (x === undefined && y === undefined) return undefined;
+  const props = JSON.parse(JSON.stringify(existingProps ?? {})) as Record<string, unknown>;
+  const transform = props.transform;
+  if (!transform || typeof transform !== "object") return undefined;
+  const t = transform as { position?: { x?: number; y?: number } };
+  const pos = { ...(t.position ?? {}) };
+  if (x !== undefined) pos.x = x;
+  if (y !== undefined) pos.y = y;
+  t.position = pos;
+  return props;
 }
 
 function rejectSpritePropsConflict(
@@ -109,6 +126,28 @@ export async function applyTablePatches(params: {
           continue;
         }
       }
+
+      const currentForMerge =
+        op.patch.props === undefined &&
+        (op.patch.x !== undefined || op.patch.y !== undefined)
+          ? await TableObjectModel.findOne({
+              gameSessionId: sessionOid,
+              key: op.key,
+              version: op.baseVersion,
+            })
+              .select({ props: 1 })
+              .lean()
+          : null;
+
+      const mergedProps =
+        currentForMerge && op.patch.props === undefined
+          ? syncTransformPositionInProps(
+              (currentForMerge.props ?? {}) as Record<string, unknown>,
+              op.patch.x,
+              op.patch.y
+            )
+          : undefined;
+
       const updated = await TableObjectModel.findOneAndUpdate(
         { gameSessionId: sessionOid, key: op.key, version: op.baseVersion },
         {
@@ -117,6 +156,7 @@ export async function applyTablePatches(params: {
             ...(op.patch.y !== undefined ? { y: op.patch.y } : {}),
             ...(op.patch.sortOrder !== undefined ? { sortOrder: op.patch.sortOrder } : {}),
             ...(op.patch.props !== undefined ? { props: op.patch.props } : {}),
+            ...(mergedProps !== undefined ? { props: mergedProps } : {}),
           },
           $inc: { version: 1 },
         },

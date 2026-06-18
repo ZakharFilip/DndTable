@@ -58,7 +58,26 @@ export class ObjectMutationPlanner {
     };
   }
 
-  planTransformCommit(state: TableObjectState, obj: TabletopBaseObject): CommitPlan {
+  planTransformCommit(state: TableObjectState, obj: TabletopBaseObject): CommitPlan | null {
+    if (this.isUnacked(state.key)) {
+      return this.planTransformCommitUnacked(state, obj);
+    }
+    return this.planTransformCommitAcked(state, obj);
+  }
+
+  /** Acked objects: full props so DB props.transform stays in sync on reload. */
+  planTransformCommitAcked(state: TableObjectState, obj: TabletopBaseObject): CommitPlan | null {
+    const sanitized = sanitizePropsForSync(obj);
+    if (!sanitized.ok) return null;
+    return this.planUpdate(state, {
+      x: obj.transform.position.x,
+      y: obj.transform.position.y,
+      props: sanitized.props,
+    });
+  }
+
+  /** Unacked creates: position-only patch merged into pending create by TableSync. */
+  planTransformCommitUnacked(state: TableObjectState, obj: TabletopBaseObject): CommitPlan {
     return this.planUpdate(state, transformPositionPatch(obj));
   }
 
@@ -95,6 +114,7 @@ export class ObjectMutationPlanner {
     for (const state of states) {
       const latest = latestByKey.get(state.key) ?? state;
       const plan = this.planTransformCommit(latest, latest.obj);
+      if (!plan) continue;
       if (plan.bumpVersion) {
         acked.push({ key: state.key, plan });
       } else {

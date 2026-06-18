@@ -4,10 +4,10 @@ import type { SessionFullDto } from "../../api/sessions";
 import type { AppliedOp } from "../../tabletop/realtime/TableSync";
 import {
   layerFromDto,
-  objectFromDto,
   type Layer,
   type TableObjectState,
 } from "../../tabletop/model";
+import { TableObjectHydrator } from "../../tabletop/sync/TableObjectHydrator";
 import { resolveSpriteSrc } from "../../utils/spriteUrl";
 
 const DEFAULT_BASE_LAYER_ID = "base";
@@ -124,7 +124,7 @@ export function parseSessionFull(data: SessionFullDto): ParsedSession {
     .filter((x): x is Layer => Boolean(x))
     .sort((a, b) => a.order - b.order);
   const objects = data.objects
-    .map((o) => objectFromDto(o))
+    .map((o) => TableObjectHydrator.fromDto(o))
     .filter((x): x is TableObjectState => Boolean(x));
   return {
     viewport,
@@ -207,7 +207,7 @@ export function applyBroadcastToObjects(
   let next = prev.slice();
   for (const op of applied) {
     if (op.action === "create") {
-      const created = objectFromDto({
+      const created = TableObjectHydrator.fromDto({
         id: op.key,
         key: op.key,
         version: op.version,
@@ -226,9 +226,13 @@ export function applyBroadcastToObjects(
         if (o.key !== op.key) return o;
         const nextX = op.patch.x ?? o.obj.transform.position.x;
         const nextY = op.patch.y ?? o.obj.transform.position.y;
-        const nextProps =
+        const baseProps =
           op.patch.props ?? (o.obj as unknown as Record<string, unknown>);
-        const patched = objectFromDto({
+        const nextProps =
+          op.patch.x !== undefined || op.patch.y !== undefined
+            ? TableObjectHydrator.mergePositionIntoProps(baseProps, nextX, nextY)
+            : baseProps;
+        const patched = TableObjectHydrator.fromDto({
           id: op.key,
           key: op.key,
           version: op.version,
